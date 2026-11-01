@@ -58,8 +58,8 @@ Các component sử dụng Web Components chuẩn của trình duyệt và rende
 - Lưu giá nhập và giá bán riêng cho từng sản phẩm.
 - Chọn tùy chọn ghi nợ trong biểu mẫu tạo đơn để lưu đơn và danh sách mặt hàng vào sổ công nợ.
 - Xem công nợ gộp theo khách, sắp xếp theo số tiền, biểu đồ công nợ, chi tiết từng lần mua và thu hết trong hộp thoại.
-- Xem doanh thu trong 24 giờ qua và doanh thu theo từng ngày trong 7 ngày gần nhất.
-- Xem biểu đồ doanh thu trong 7/30 ngày, quý hiện tại hoặc năm hiện tại.
+- Xem doanh thu trong 24 giờ qua và doanh thu/công nợ đã thu theo từng ngày trong 7 ngày gần nhất.
+- Xem biểu đồ doanh thu và công nợ đã thu trong 7/30 ngày, quý hiện tại hoặc năm hiện tại. Khi cập nhật, tổng công nợ đã thu cũ chưa có ngày giao dịch sẽ được ghi nhận một lần vào ngày cập nhật để hiển thị trên biểu đồ.
 - Chỉnh sửa tên, số điện thoại và email của quản trị viên tại hồ sơ dưới menu.
 - Chọn ảnh từ thư viện hoặc chụp ảnh; ảnh được nén trước khi lưu.
 - Tạo đơn từ sản phẩm và số lượng; tự tính doanh thu, giá vốn, lợi nhuận và cập nhật tồn kho.

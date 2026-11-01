@@ -39,7 +39,8 @@ const initialData = {
     { id: "CN001", orderId: "DH002", customer: "Cô Lan", phone: "0901 234 567", date: new Date(Date.now() - 3600000).toISOString(), note: "Mua đồ dùng gia đình", amount: 120500 },
     { id: "CN002", customer: "Chú Ba", phone: "0912 345 678", date: new Date(Date.now() - 86400000 * 5).toISOString(), note: "Gạo và dầu ăn", amount: 85000 }
   ],
-  collected: 450000
+  collected: 450000,
+  collectedPayments: []
 };
 
 let store;
@@ -64,7 +65,8 @@ try {
             lines: debt.lines || order?.lines,
             id: debt.id || idFor("CN", saved.debts)
           };
-        })
+        }),
+        collectedPayments: Array.isArray(saved.collectedPayments) ? saved.collectedPayments : []
       }
     : structuredClone(initialData);
   if (saved && (!Array.isArray(saved.products) || !Array.isArray(saved.orders) || !Array.isArray(saved.debts))) {
@@ -88,7 +90,7 @@ const formatInputAmount = (value) => {
 };
 const parseInputAmount = (value) => Number(String(value).replace(/\D/g, ""));
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-const searchKey = (value) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").toLocaleLowerCase("vi");
+const searchKey = (value) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("vi").replace(/đ/g, "d");
 const idFor = (prefix, items) => `${prefix}${String(Math.max(0, ...items.map((item) => Number(item.id.slice(prefix.length)) || 0)) + 1).padStart(3, "0")}`;
 const dateLabel = (value) => new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 const timeLabel = (value) => new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }).format(new Date(value));
@@ -252,6 +254,15 @@ function renderRevenueChart() {
     if (totalsByDate.has(key)) totalsByDate.set(key, totalsByDate.get(key) + order.amount);
   }
   const amounts = dates.map((date) => totalsByDate.get(chartKey(date)));
+  const collectedByDate = new Map(dates.map((date) => [chartKey(date), 0]));
+  for (const payment of store.collectedPayments || []) {
+    if (!payment || !Number.isFinite(payment.amount)) continue;
+    const paymentDate = new Date(payment.date);
+    if (!Number.isFinite(paymentDate.getTime())) continue;
+    const key = chartKey(paymentDate);
+    if (collectedByDate.has(key)) collectedByDate.set(key, collectedByDate.get(key) + payment.amount);
+  }
+  const collectedAmounts = dates.map((date) => collectedByDate.get(chartKey(date)));
   const total = amounts.reduce((sum, amount) => sum + amount, 0);
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
@@ -260,7 +271,7 @@ function renderRevenueChart() {
     return orderTime >= oneDayAgo && orderTime <= now ? sum + order.amount : sum;
   }, 0);
   document.querySelector("#revenue-last-day").textContent = money(lastDayRevenue);
-  const maximum = Math.max(...amounts, 1000);
+  const maximum = Math.max(...amounts, ...collectedAmounts, 1000);
   const magnitude = 10 ** Math.floor(Math.log10(maximum));
   const ratio = maximum / magnitude;
   const axisMaximum = (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10) * magnitude;
@@ -268,9 +279,15 @@ function renderRevenueChart() {
     x: (index / (amounts.length - 1)) * 640,
     y: 180 - (amount / axisMaximum) * 170
   }));
+  const collectedPoints = collectedAmounts.map((amount, index) => ({
+    x: (index / (collectedAmounts.length - 1)) * 640,
+    y: 180 - (amount / axisMaximum) * 170
+  }));
   const linePath = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const collectedLinePath = collectedPoints.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   document.querySelector(".chart-line-path").setAttribute("d", linePath);
   document.querySelector(".chart-area-path").setAttribute("d", `${linePath} L${points[points.length - 1].x.toFixed(1)},190 L${points[0].x.toFixed(1)},190 Z`);
+  document.querySelector(".chart-debt-line-path").setAttribute("d", collectedLinePath);
   document.querySelector("#chart-y-labels").innerHTML = [4, 3, 2, 1, 0]
     .map((level) => `<span>${compactMoney(axisMaximum * level / 4)}</span>`).join("");
   const labelCount = isMonthly
@@ -288,21 +305,30 @@ function renderRevenueChart() {
     : period === "year" ? `Năm ${today.getFullYear()}`
       : `${days} ngày qua`;
   document.querySelector("#chart-summary-period").textContent = periodLabel;
-  document.querySelector(".chart-svg").setAttribute("aria-label", `Biểu đồ doanh thu ${periodLabel}`);
+  document.querySelector(".chart-svg").setAttribute("aria-label", `Biểu đồ doanh thu và công nợ đã thu ${periodLabel}`);
   const recentDates = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (6 - index));
     return date;
   });
   const dailyTotals = new Map(recentDates.map((date) => [dateKey(date), 0]));
+  const dailyCollectedTotals = new Map(recentDates.map((date) => [dateKey(date), 0]));
   for (const order of store.orders) {
     const key = dateKey(new Date(order.date));
     if (dailyTotals.has(key)) dailyTotals.set(key, dailyTotals.get(key) + order.amount);
   }
+  for (const payment of store.collectedPayments || []) {
+    if (!payment || !Number.isFinite(payment.amount)) continue;
+    const paymentDate = new Date(payment.date);
+    if (!Number.isFinite(paymentDate.getTime())) continue;
+    const key = dateKey(paymentDate);
+    if (dailyCollectedTotals.has(key)) dailyCollectedTotals.set(key, dailyCollectedTotals.get(key) + payment.amount);
+  }
   document.querySelector("#daily-revenue-list").innerHTML = recentDates.map((date) => {
     const amount = dailyTotals.get(dateKey(date));
+    const collectedAmount = dailyCollectedTotals.get(dateKey(date));
     const label = new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" }).format(date);
-    return `<div class="daily-revenue-row"><span>${escapeHtml(label)}</span><strong>${money(amount)}</strong></div>`;
+    return `<div class="daily-revenue-row"><span>${escapeHtml(label)}</span><strong>${money(amount)}</strong><small>Thu nợ: ${money(collectedAmount)}</small></div>`;
   }).join("");
 }
 
@@ -490,6 +516,7 @@ function renderDebts() {
   document.querySelector("#debts-customers").textContent = groups.length;
   document.querySelector("#debts-collected").textContent = money(store.collected || 0);
   document.querySelector("#stat-debt").textContent = money(total);
+  document.querySelector("#stat-collected").textContent = money(store.collected || 0);
   document.querySelector("#stat-debt-customers").textContent = `${new Set(store.debts.map((debt) => debt.customer)).size} khách hàng`;
 }
 
@@ -501,11 +528,40 @@ function renderUnits() {
   }).join("");
 }
 
+function renderGreeting() {
+  const now = new Date();
+  const hour = now.getHours();
+  const period = hour < 11 ? "sáng" : hour < 18 ? "chiều" : "tối";
+  const adminName = store.admin.name.trim().split(/\s+/)[0] || "Admin";
+
+  document.querySelector("#greeting-title").textContent = `Chào buổi ${period}, ${adminName}`;
+  document.querySelector("#greeting-date").textContent = new Intl.DateTimeFormat("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long"
+  }).format(now).toLocaleUpperCase("vi");
+}
+
+function addUnassignedCollectedTotalToToday() {
+  const collectedPayments = Array.isArray(store.collectedPayments) ? store.collectedPayments : [];
+  const recordedTotal = collectedPayments.reduce((sum, payment) => {
+    if (!payment || !Number.isFinite(payment.amount) || !Number.isFinite(new Date(payment.date).getTime())) return sum;
+    return sum + payment.amount;
+  }, 0);
+  const unassignedTotal = (Number.isFinite(store.collected) ? store.collected : 0) - recordedTotal;
+
+  if (unassignedTotal <= 0) return false;
+  collectedPayments.push({ date: new Date().toISOString(), amount: unassignedTotal });
+  store.collectedPayments = collectedPayments;
+  return true;
+}
+
 function renderAll() {
   document.querySelector("[data-admin-name]").textContent = store.admin.name;
   document.querySelectorAll("[data-admin-initial]").forEach((avatar) => {
     avatar.textContent = store.admin.name.trim().charAt(0).toUpperCase() || "A";
   });
+  renderGreeting();
   renderProducts();
   renderOrders();
   renderDebts();
@@ -526,6 +582,7 @@ async function initializeDatabase() {
 
   try {
     const result = await databaseRequest();
+    let shouldPersist = !result.store;
     if (result.store) {
       if (!Array.isArray(result.store.products)
         || !Array.isArray(result.store.orders)
@@ -538,11 +595,14 @@ async function initializeDatabase() {
       store = {
         ...initialData,
         ...result.store,
-        admin: { ...initialData.admin, ...result.store.admin }
+        admin: { ...initialData.admin, ...result.store.admin },
+        collectedPayments: Array.isArray(result.store.collectedPayments) ? result.store.collectedPayments : []
       };
     } else {
-      await persist();
+      store.collectedPayments = Array.isArray(store.collectedPayments) ? store.collectedPayments : [];
     }
+    if (addUnassignedCollectedTotalToToday()) shouldPersist = true;
+    if (shouldPersist) await persist();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     } catch {
@@ -612,6 +672,7 @@ async function collectDebts(debts) {
   const orderIds = new Set(debts.map((debt) => debt.orderId).filter(Boolean));
   const amount = debts.reduce((sum, debt) => sum + debt.amount, 0);
   store.collected = (store.collected || 0) + amount;
+  store.collectedPayments.push({ date: new Date().toISOString(), amount });
   store.orders.forEach((order) => {
     if (orderIds.has(order.id)) {
       order.status = "paid";
@@ -871,6 +932,7 @@ document.addEventListener("click", async (event) => {
         order.status = "paid";
         order.payment = "Đã thu công nợ";
         store.collected = (store.collected || 0) + order.amount;
+        store.collectedPayments.push({ date: new Date().toISOString(), amount: order.amount });
         if (await commitStore(previousStore)) {
           renderAll();
           showToast("Đơn hàng đã được đánh dấu thanh toán.");
@@ -1071,5 +1133,5 @@ document.querySelector("#chart-period").addEventListener("change", renderRevenue
 document.querySelector("#database-retry").addEventListener("click", initializeDatabase);
 const today = new Date();
 document.querySelector("#today-label").textContent = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(today);
-document.querySelector("#greeting-date").textContent = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "long" }).format(today).toLocaleUpperCase("vi");
+renderGreeting();
 initializeDatabase();

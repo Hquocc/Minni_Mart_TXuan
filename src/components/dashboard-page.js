@@ -5,10 +5,10 @@ class DashboardPage extends HTMLElement {
         <div class="page-heading heading-with-action">
           <div>
             <p class="eyebrow" id="greeting-date"></p>
-            <h1>Chào buổi sáng, Thảo <span class="wave">✿</span></h1>
+            <h1><span id="greeting-title"></span> <span class="wave">✿</span></h1>
             <p class="heading-subtitle">Cùng xem cửa hàng nhỏ của bạn hôm nay nhé.</p>
           </div>
-          <button class="button button-primary" data-action="add-product"><span>＋</span> Thêm sản phẩm</button>
+          <button class="button button-primary" data-action="add-order"><span>＋</span> Thêm đơn hàng</button>
         </div>
         <section class="panel quick-panel top-quick-panel">
           <div class="panel-heading"><div><h2>Thao tác nhanh</h2><p>Tiết kiệm thời gian mỗi ngày</p></div></div>
@@ -49,6 +49,12 @@ class DashboardPage extends HTMLElement {
             <small class="stat-foot"><span id="stat-debt-customers">0 khách hàng</span> cần thu</small>
             <div class="sparkline pink-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           </article>
+          <article class="stat-card">
+            <div class="stat-top"><span>Công nợ đã thu</span><span class="stat-icon mint-icon">✓</span></div>
+            <strong id="stat-collected">0 ₫</strong>
+            <small class="stat-foot">Tổng tiền đã thu</small>
+            <div class="sparkline mint-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </article>
         </div>
         <div class="overview-grid">
           <section class="panel revenue-panel">
@@ -70,9 +76,14 @@ class DashboardPage extends HTMLElement {
                   <defs><linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#f2a6c1" stop-opacity=".35"/><stop offset="100%" stop-color="#f2a6c1" stop-opacity="0"/></linearGradient></defs>
                   <path class="chart-area-path" d="" fill="url(#chart-fill)"/>
                   <path class="chart-line-path" d="" fill="none" stroke="#e987aa" stroke-width="3" vector-effect="non-scaling-stroke"/>
+                  <path class="chart-debt-line-path" d="" fill="none" stroke="#65b58d" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
                 </svg>
                 <div class="chart-x-labels" id="chart-x-labels"></div>
               </div>
+            </div>
+            <div class="chart-legend" aria-label="Chú giải biểu đồ">
+              <span><i class="chart-legend-revenue"></i>Doanh thu</span>
+              <span><i class="chart-legend-debt"></i>Công nợ đã thu</span>
             </div>
             <div class="daily-revenue" id="daily-revenue">
               <div class="revenue-last-day"><span>Doanh thu 24 giờ qua</span><strong id="revenue-last-day">0 ₫</strong></div>

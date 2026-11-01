@@ -88,7 +88,7 @@ h1 { margin-bottom: 5px; font: 700 27px "Quicksand", sans-serif; letter-spacing:
 .button-primary span { font-size: 16px; font-weight: 400; }
 .button-soft { background: #fff1f6; color: #ce7094; }
 .button-quiet { background: #f7f3f5; color: #837783; }
-.stats-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.stats-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .stat-card, .panel { border: 1px solid #f0e9ed; border-radius: 13px; background: #fff; box-shadow: 0 3px 14px #4f344508; }
 .stat-card { position: relative; min-height: 129px; overflow: hidden; padding: 15px 16px; }
 .stat-top { display: flex; align-items: center; justify-content: space-between; color: #988d98; font-size: 10px; }
@@ -119,6 +119,10 @@ h1 { margin-bottom: 5px; font: 700 27px "Quicksand", sans-serif; letter-spacing:
 .chart-grid-lines i { border-top: 1px dashed #f0eaf0; }
 .chart-svg { position: absolute; inset: 0 0 20px; width: 100%; height: calc(100% - 20px); overflow: visible; }
 .chart-x-labels { position: absolute; right: 0; bottom: 0; left: 0; display: flex; justify-content: space-between; color: #b4aab4; font-size: 8px; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 19px 8px; color: #998e98; font-size: 9px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend i { width: 16px; height: 3px; border-radius: 2px; background: #e987aa; }
+.chart-legend .chart-legend-debt { height: 3px; background: #65b58d; }
 .daily-revenue { margin: 0 18px 15px; padding-top: 12px; border-top: 1px solid #f3edf0; }
 .revenue-last-day { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 10px 12px; border-radius: 9px; background: #fff5f8; }
 .revenue-last-day span { color: #998b97; font-size: 9px; }
@@ -129,6 +133,7 @@ h1 { margin-bottom: 5px; font: 700 27px "Quicksand", sans-serif; letter-spacing:
 .daily-revenue-row { display: grid; gap: 4px; padding: 7px; border-radius: 7px; background: #fff8fb; }
 .daily-revenue-row span { color: #a99da8; font-size: 8px; }
 .daily-revenue-row strong { color: #635763; font-size: 9px; }
+.daily-revenue-row small { color: #4f9b72; font-size: 8px; }
 .quick-actions { padding: 10px 17px 9px; }
 .quick-actions button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 11px 2px; border: 0; border-bottom: 1px solid #f5f0f3; background: transparent; text-align: left; cursor: pointer; }
 .quick-actions button:last-child { border-bottom: 0; }
@@ -165,7 +170,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .toolbar { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; padding: 12px 14px; }
 .search-box { display: flex; width: min(320px, 42%); height: 34px; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid #eee7eb; border-radius: 8px; color: #b7aab5; }
 .search-box > span { font-size: 21px; line-height: 1; }
-.search-box input { width: 100%; border: 0; outline: 0; color: var(--ink); font-size: 10px; }
+.search-box input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; appearance: none; -webkit-appearance: none; background: transparent; box-shadow: none; color: var(--ink); font-size: 10px; }
+.search-box input::-webkit-search-decoration, .search-box input::-webkit-search-cancel-button, .search-box input::-webkit-search-results-button, .search-box input::-webkit-search-results-decoration { display: none; }
 .search-box input::placeholder { color: #b5aab3; }
 .toolbar-spacer { flex: 1; }
 .result-count { color: #a89da7; font-size: 9px; }
@@ -277,7 +283,7 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (min-width: 1500px) { .page-wrap { padding-right: 58px; padding-left: 58px; } }
 @media (max-width: 1120px) {
   .sidebar { width: 218px; }.main-content { margin-left: 218px; }.topbar { padding-right: 28px; padding-left: 28px; }.page-wrap { padding-right: 28px; padding-left: 28px; }
-  .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }.compact-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }.page-section#page-debts .compact-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }.stat-card { padding-right: 12px; padding-left: 12px; }.overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.compact-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }.page-section#page-debts .compact-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }.stat-card { padding-right: 12px; padding-left: 12px; }.overview-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 850px) {
   .sidebar { width: 158px; align-items: stretch; padding-right: 10px; padding-left: 10px; }.brand { padding: 0 4px; }
@@ -348,7 +354,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .data-panel td { padding: 10px 12px; }
   .toolbar { gap: 8px; padding: 10px; }
   .search-box { width: 100%; height: 42px; }
-  .search-box input { min-width: 0; font-size: 14px; }
+  .search-box input { font-size: 16px; }
   .filter-select { flex: 1; min-width: 0; }
   .result-count { margin-left: auto; font-size: 10px; }
   .pagination { align-items: center; gap: 8px; padding: 10px; }
@@ -417,6 +423,7 @@ tbody tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 620px) {
   body { font-size: 16px; }
+  .app-dialog input, .app-dialog select, .app-dialog textarea { font-size: 16px; }
   .breadcrumb { font-size: 12px; }
   .nav-link, .sidebar.open .nav-link { min-height: 44px; font-size: 14px; }
   .heading-subtitle { font-size: 14px; }
@@ -428,6 +435,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .daily-revenue-heading { font-size: 11px; }
   .daily-revenue-heading span, .daily-revenue-row span { font-size: 10px; }
   .daily-revenue-row strong { font-size: 12px; }
+  .daily-revenue-row small, .chart-legend { font-size: 10px; }
   .revenue-last-day span { font-size: 11px; }
   .revenue-last-day strong { font-size: 15px; }
   .chart-y-labels, .chart-x-labels { font-size: 9px; }
