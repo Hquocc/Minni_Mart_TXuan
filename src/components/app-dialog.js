@@ -5,7 +5,7 @@ class AppDialog extends HTMLElement {
         <form id="dialog-form">
           <div class="dialog-heading">
             <div><p class="eyebrow">MINNI MART</p><h2 id="dialog-title">Thêm sản phẩm</h2></div>
-            <button class="dialog-close" type="button" aria-label="Đóng">×</button>
+            <button class="dialog-close" type="button" aria-label="Đóng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
           </div>
           <div id="dialog-content"></div>
           <div class="dialog-actions">

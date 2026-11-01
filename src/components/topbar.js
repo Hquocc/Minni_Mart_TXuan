@@ -3,7 +3,7 @@ class StoreTopbar extends HTMLElement {
     this.innerHTML = `
       <header class="topbar">
         <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Thu gọn thanh menu" aria-expanded="true" title="Thu gọn thanh menu"><span aria-hidden="true">‹</span></button>
-        <button class="mobile-menu" id="mobile-menu" aria-label="Mở menu">☰</button>
+        <button class="mobile-menu" id="mobile-menu" aria-label="Mở menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
         <div class="breadcrumb">
           <button class="breadcrumb-home" type="button" data-page="overview">Cửa hàng</button><span class="breadcrumb-divider">/</span>
           <strong id="breadcrumb-current">Tổng quan</strong>

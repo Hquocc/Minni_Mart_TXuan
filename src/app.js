@@ -94,13 +94,13 @@ const searchKey = (value) => String(value).normalize("NFD").replace(/[\u0300-\u0
 const idFor = (prefix, items) => `${prefix}${String(Math.max(0, ...items.map((item) => Number(item.id.slice(prefix.length)) || 0)) + 1).padStart(3, "0")}`;
 const dateLabel = (value) => new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 const timeLabel = (value) => new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }).format(new Date(value));
-async function databaseRequest(method = "GET") {
+async function databaseRequest(method = "GET", serializedStore = "") {
   let response;
   try {
     response = await fetch("/api/store", {
       method,
       headers: method === "PUT" ? { "Content-Type": "application/json" } : undefined,
-      body: method === "PUT" ? JSON.stringify({ store }) : undefined
+      body: method === "PUT" ? `{"store":${serializedStore || JSON.stringify(store)}}` : undefined
     });
   } catch {
     throw new Error("Không kết nối được API. Hãy chạy ứng dụng qua Vercel hoặc `npx vercel dev`.");
@@ -116,9 +116,10 @@ async function databaseRequest(method = "GET") {
 }
 
 async function persist() {
-  await databaseRequest("PUT");
+  const serializedStore = JSON.stringify(store);
+  await databaseRequest("PUT", serializedStore);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    localStorage.setItem(STORAGE_KEY, serializedStore);
   } catch {
     showToast("Dữ liệu đã lưu lên MongoDB nhưng không thể lưu bản sao trên thiết bị.", true);
   }
@@ -183,7 +184,7 @@ function showToast(message, error = false) {
 
 function productThumb(product) {
   const visual = product.image
-    ? `<img src="${escapeHtml(product.image)}" alt="">`
+    ? `<img src="${escapeHtml(product.image)}" alt="" loading="lazy" decoding="async">`
     : escapeHtml(product.emoji || "🛍️");
   return `<span class="product-thumb ${escapeHtml(product.color || "")}">${visual}</span>`;
 }
@@ -361,7 +362,7 @@ function renderProducts() {
     <td>${productCell(product)}</td><td>${escapeHtml(product.id)}</td><td>${escapeHtml(product.unit)}</td>
     <td>${money(product.price)}</td><td>${product.stock} ${escapeHtml(product.unit)}</td>
     <td><span class="stock-badge ${product.stock <= 5 ? "low" : ""}">${product.stock <= 0 ? "• Hết hàng" : product.stock <= 5 ? "• Sắp hết hàng" : "• Còn hàng"}</span></td>
-    <td class="product-actions-column"><div class="row-actions"><button class="row-action" data-edit-product="${escapeHtml(product.id)}" aria-label="Sửa ${escapeHtml(product.name)}">✎</button><button class="row-action delete" data-delete-product="${escapeHtml(product.id)}" aria-label="Xóa ${escapeHtml(product.name)}">×</button></div></td>
+    <td class="product-actions-column"><div class="row-actions"><button class="row-action" data-edit-product="${escapeHtml(product.id)}" aria-label="Sửa ${escapeHtml(product.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.2-.9L19 8.3 15.7 5 4.9 15.8 4 20Z"/></svg></button><button class="row-action delete" data-delete-product="${escapeHtml(product.id)}" aria-label="Xóa ${escapeHtml(product.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div></td>
   </tr>`).join("");
   document.querySelector("#products-table").innerHTML = rows;
   const productsPagination = document.querySelector("#products-pagination");
@@ -550,7 +551,7 @@ function renderUnits() {
   const icons = ["◌", "▱", "⌁", "▣", "▤", "◯"];
   document.querySelector("#units-grid").innerHTML = store.units.map((unit, index) => {
     const used = store.products.filter((product) => product.unit === unit).length;
-    return `<article class="unit-card"><span class="unit-symbol">${icons[index % icons.length]}</span><span><strong>${escapeHtml(unit)}</strong><small>${used} sản phẩm đang dùng</small></span><button class="row-action delete" data-delete-unit="${escapeHtml(unit)}" aria-label="Xóa đơn vị ${escapeHtml(unit)}">×</button></article>`;
+    return `<article class="unit-card"><span class="unit-symbol">${icons[index % icons.length]}</span><span><strong>${escapeHtml(unit)}</strong><small>${used} sản phẩm đang dùng</small></span><button class="row-action delete" data-delete-unit="${escapeHtml(unit)}" aria-label="Xóa đơn vị ${escapeHtml(unit)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></article>`;
   }).join("");
 }
 
@@ -843,7 +844,7 @@ function renderOrderLine(selectedId = "") {
       </select>
     </div>
     <input class="order-quantity" type="number" aria-label="Số lượng" min="1" step="1" max="${product?.stock || 1}" value="1" required>
-    <button class="row-action delete" type="button" data-remove-order-line aria-label="Xóa mặt hàng">×</button>`;
+    <button class="row-action delete" type="button" data-remove-order-line aria-label="Xóa mặt hàng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>`;
   return row;
 }
 
