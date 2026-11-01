@@ -724,7 +724,6 @@ function productForm(product = {}) {
         <span class="image-preview" id="image-preview">${imageData ? `<img src="${escapeHtml(imageData)}" alt="Ảnh xem trước">` : escapeHtml(product.emoji || "🛍️")}</span>
         <div class="image-picker-controls">
           <label class="upload-button">Chọn từ thư viện<input type="file" id="product-image" accept="image/*"></label>
-          <label class="upload-button">Chụp ảnh<input type="file" id="product-camera" accept="image/*" capture="environment"></label>
           <small class="image-help">Ảnh sẽ được tối ưu và lưu cùng sản phẩm.</small>
         </div>
       </div></div>
@@ -733,10 +732,8 @@ function productForm(product = {}) {
       <div class="form-field"><label for="product-price">Giá bán (₫) *</label><input id="product-price" class="money-input" name="price" type="text" inputmode="numeric" autocomplete="off" required placeholder="Ví dụ: 200.000" value="${product.price == null ? "" : formatInputAmount(product.price)}"></div>
       <div class="form-field"><label for="product-stock">Số lượng tồn *</label><input id="product-stock" name="stock" type="number" min="0" step="1" required placeholder="0" value="${product.stock ?? ""}"></div>
     </div>`);
-  dialogContent.querySelectorAll("#product-image, #product-camera").forEach((input) => {
-    input.addEventListener("change", (event) => {
-      imageProcessing = handleImageUpload(event);
-    });
+  dialogContent.querySelector("#product-image").addEventListener("change", (event) => {
+    imageProcessing = handleImageUpload(event);
   });
 }
 
