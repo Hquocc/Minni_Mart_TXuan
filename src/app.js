@@ -872,7 +872,7 @@ function orderForm() {
       <button class="button button-soft add-order-line" type="button" data-add-order-line>＋ Thêm mặt hàng</button>
     </div>
     <div class="form-field full order-debt-option"><label class="order-debt-label" for="order-record-debt"><input id="order-record-debt" name="recordDebt" type="checkbox"><span>Ghi đơn hàng này vào sổ công nợ</span></label><small>Đánh dấu nếu khách mua thiếu hoặc chưa thanh toán.</small></div>
-    <div class="form-field"><label for="order-payment">Hình thức thanh toán</label><select id="order-payment" name="payment"><option>Tiền mặt</option><option>Chuyển khoản</option></select></div>
+    <input type="hidden" name="payment" value="Tiền mặt">
     <div class="form-field"><label for="order-note">Ghi chú</label><input id="order-note" name="note" maxlength="100" placeholder="Ghi chú (không bắt buộc)"></div>
     <div class="order-summary full">
       <div><span>Tiền cần thanh toán</span><strong id="order-total">0 ₫</strong></div>
@@ -1037,7 +1037,7 @@ dialogForm.addEventListener("submit", async (event) => {
   }
   if (dialogContent.querySelector("#order-customer")) {
     const customer = String(form.get("customer")).trim();
-    const payment = String(form.get("payment"));
+    const payment = "Tiền mặt";
     const recordDebt = form.get("recordDebt") === "on";
     const quantities = new Map();
     for (const row of dialogContent.querySelectorAll(".order-line-row")) {
