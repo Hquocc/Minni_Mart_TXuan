@@ -744,16 +744,20 @@ async function handleImageUpload(event) {
   const input = event.target;
   const file = input.files?.[0];
   if (!file) return true;
-  if (!file.type.startsWith("image/")) {
+  const imageStatus = dialogContent.querySelector(".image-help");
+  if (file.type && !file.type.startsWith("image/")) {
     showToast("Vui lòng chọn một tệp hình ảnh.", true);
+    if (imageStatus) imageStatus.textContent = "Tệp đã chọn không phải hình ảnh.";
     input.value = "";
     return false;
   }
   if (file.size > 20 * 1024 * 1024) {
     showToast("Ảnh quá lớn. Vui lòng chọn ảnh dưới 20 MB.", true);
+    if (imageStatus) imageStatus.textContent = "Ảnh vượt quá giới hạn 20 MB.";
     input.value = "";
     return false;
   }
+  if (imageStatus) imageStatus.textContent = "Đang xử lý ảnh...";
   let objectUrl;
   try {
     objectUrl = URL.createObjectURL(file);
@@ -767,17 +771,22 @@ async function handleImageUpload(event) {
     const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
     canvas.width = Math.round(image.naturalWidth * scale);
     canvas.height = Math.round(image.naturalHeight * scale);
-    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-    let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.68));
-    if (!blob || blob.type !== "image/webp") {
-      throw new Error("Trình duyệt không hỗ trợ nén ảnh WebP.");
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Không thể xử lý ảnh trên thiết bị này.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    let outputType = "image/webp";
+    let blob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, 0.68));
+    if (!blob || blob.type !== outputType) {
+      outputType = "image/jpeg";
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, 0.78));
     }
+    if (!blob || blob.type !== outputType) throw new Error("Không thể nén ảnh trên thiết bị này.");
     if (blob.size > 250 * 1024) {
       const smallerScale = Math.min(1, 720 / Math.max(image.naturalWidth, image.naturalHeight));
       canvas.width = Math.round(image.naturalWidth * smallerScale);
       canvas.height = Math.round(image.naturalHeight * smallerScale);
-      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.55));
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, outputType === "image/webp" ? 0.55 : 0.62));
     }
     if (!blob || blob.size > 250 * 1024) {
       throw new Error("Ảnh sau khi nén vẫn vượt quá dung lượng cho phép.");
@@ -790,9 +799,14 @@ async function handleImageUpload(event) {
     });
     imageData = dataUrl;
     document.querySelector("#image-preview").innerHTML = `<img src="${escapeHtml(imageData)}" alt="Ảnh xem trước">`;
+    if (imageStatus) imageStatus.textContent = "Ảnh đã sẵn sàng để lưu.";
     return true;
   } catch (error) {
-    showToast(error.message || "Không thể xử lý ảnh này. Vui lòng thử lại.", true);
+    const message = error.message === "Không thể mở ảnh này."
+      ? "Không đọc được định dạng ảnh này. Hãy chọn ảnh JPG/PNG hoặc chụp lại bằng camera."
+      : error.message || "Không thể xử lý ảnh này. Vui lòng thử lại.";
+    if (imageStatus) imageStatus.textContent = message;
+    showToast(message, true);
     return false;
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
