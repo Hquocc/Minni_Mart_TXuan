@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fff7fa">
+    <title>Minni Mart — Quản lý tạp hóa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="src/styles.css">
+    <script src="src/components/shared-ui.js" defer></script>
+    <script src="src/components/sidebar.js" defer></script>
+    <script src="src/components/topbar.js" defer></script>
+    <script src="src/components/dashboard-page.js" defer></script>
+    <script src="src/components/products-page.js" defer></script>
+    <script src="src/components/orders-page.js" defer></script>
+    <script src="src/components/debts-page.js" defer></script>
+    <script src="src/components/units-page.js" defer></script>
+    <script src="src/components/app-dialog.js" defer></script>
+    <script src="src/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <store-sidebar></store-sidebar>
+      <main class="main-content">
+        <store-topbar></store-topbar>
+        <div class="page-wrap">
+          <dashboard-page></dashboard-page>
+          <products-page></products-page>
+          <orders-page></orders-page>
+          <debts-page></debts-page>
+          <units-page></units-page>
+        </div>
+      </main>
+    </div>
+    <app-dialog></app-dialog>
+    <app-toast></app-toast>
+  </body>
+</html>
