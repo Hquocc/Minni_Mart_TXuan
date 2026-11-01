@@ -2,15 +2,10 @@ class StoreSidebar extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <aside class="sidebar" id="sidebar">
-        <a class="brand" href="#" aria-label="Minni Mart trang chủ">
+        <button class="brand" type="button" data-page="overview" aria-label="Minni Mart trang chủ">
           <span class="brand-mark">m</span>
-          <span><strong>minni mart</strong><small>Góc nhỏ thân quen</small></span>
-        </a>
-        <div class="store-chip">
-          <span class="store-avatar">MM</span>
-          <span><strong>Tạp hóa nhà Minni</strong><small>Cửa hàng của bạn</small></span>
-          <span class="chevron">⌄</span>
-        </div>
+          <span><strong>minni mart</strong></span>
+        </button>
         <p class="nav-caption">MENU CHÍNH</p>
         <nav class="main-nav" aria-label="Điều hướng chính">
           <button class="nav-link active" data-page="overview">Tổng quan</button>

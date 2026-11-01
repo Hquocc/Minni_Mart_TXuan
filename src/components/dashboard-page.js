@@ -32,10 +32,10 @@ class DashboardPage extends HTMLElement {
             <div class="sparkline lilac-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           </article>
           <article class="stat-card">
-            <div class="stat-top"><span>Đơn hàng</span><span class="stat-icon peach-icon">▤</span></div>
-            <strong id="stat-orders">0</strong>
-            <small class="stat-foot">Đã ghi nhận</small>
-            <div class="sparkline peach-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="stat-top"><span>Lãi + công nợ đã thu</span><span class="stat-icon yellow-icon">∑</span></div>
+            <strong id="stat-profit-collected">0 ₫</strong>
+            <small class="stat-foot">Lãi sau giá vốn cộng tiền đã thu</small>
+            <div class="sparkline yellow-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           </article>
           <article class="stat-card">
             <div class="stat-top"><span>Sản phẩm đang bán</span><span class="stat-icon mint-icon">▦</span></div>
@@ -77,13 +77,15 @@ class DashboardPage extends HTMLElement {
                   <path class="chart-area-path" d="" fill="url(#chart-fill)"/>
                   <path class="chart-line-path" d="" fill="none" stroke="#e987aa" stroke-width="3" vector-effect="non-scaling-stroke"/>
                   <path class="chart-debt-line-path" d="" fill="none" stroke="#65b58d" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+                  <path class="chart-profit-collected-line-path" d="" fill="none" stroke="#d7a62f" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
                 </svg>
                 <div class="chart-x-labels" id="chart-x-labels"></div>
               </div>
             </div>
             <div class="chart-legend" aria-label="Chú giải biểu đồ">
-              <span><i class="chart-legend-revenue"></i>Doanh thu</span>
+              <span><i class="chart-legend-revenue"></i>Tổng doanh thu</span>
               <span><i class="chart-legend-debt"></i>Công nợ đã thu</span>
+              <span><i class="chart-legend-profit-collected"></i>Lãi sau giá vốn + công nợ đã thu</span>
             </div>
             <div class="daily-revenue" id="daily-revenue">
               <div class="revenue-last-day"><span>Doanh thu 24 giờ qua</span><strong id="revenue-last-day">0 ₫</strong></div>
@@ -92,6 +94,19 @@ class DashboardPage extends HTMLElement {
             </div>
           </section>
         </div>
+        <section class="panel overview-debt-panel">
+          <div class="panel-heading">
+            <div><h2>Khách hàng còn nợ</h2><p>Số tiền và số lần ghi nợ chưa thanh toán</p></div>
+            <button class="text-button" data-navigate="debts">Xem sổ công nợ <span>→</span></button>
+          </div>
+          <div class="table-wrap">
+            <table class="overview-debt-table">
+              <thead><tr><th>KHÁCH HÀNG</th><th>SỐ LẦN GHI NỢ</th><th>SỐ TIỀN CÒN NỢ</th></tr></thead>
+              <tbody id="overview-debts"></tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="overview-debts-empty"><strong>Không có khách hàng còn nợ</strong></div>
+        </section>
         <section class="panel recent-panel">
           <div class="panel-heading">
             <div><h2>Sản phẩm gần đây</h2><p>Các mặt hàng trong cửa hàng của bạn</p></div>

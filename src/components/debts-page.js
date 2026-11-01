@@ -23,6 +23,7 @@ class DebtsPage extends HTMLElement {
               <tbody id="debts-table"></tbody>
             </table>
           </div>
+          <nav class="pagination" id="debts-pagination" aria-label="Phân trang sổ công nợ"></nav>
           <div class="empty-state hidden" id="debts-empty"><span>♡</span><strong>Chưa có khoản nợ nào</strong><p>Cửa hàng chưa có khách hàng ghi nợ.</p></div>
         </section>
         <page-footer></page-footer>

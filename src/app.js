@@ -168,8 +168,9 @@ let editingProductId = null;
 let imageData = "";
 let imageProcessing = Promise.resolve(true);
 let toastTimer;
+let nextOrderLineId = 0;
 const pageSize = 10;
-const currentPage = { products: 1, orders: 1 };
+const currentPage = { products: 1, orders: 1, debts: 1 };
 
 function showToast(message, error = false) {
   const toast = document.querySelector("#toast");
@@ -254,6 +255,13 @@ function renderRevenueChart() {
     if (totalsByDate.has(key)) totalsByDate.set(key, totalsByDate.get(key) + order.amount);
   }
   const amounts = dates.map((date) => totalsByDate.get(chartKey(date)));
+  const profitByDate = new Map(dates.map((date) => [chartKey(date), 0]));
+  for (const order of store.orders) {
+    if (!Number.isFinite(order.profit)) continue;
+    const key = chartKey(new Date(order.date));
+    if (profitByDate.has(key)) profitByDate.set(key, profitByDate.get(key) + order.profit);
+  }
+  const profitAmounts = dates.map((date) => profitByDate.get(chartKey(date)));
   const collectedByDate = new Map(dates.map((date) => [chartKey(date), 0]));
   for (const payment of store.collectedPayments || []) {
     if (!payment || !Number.isFinite(payment.amount)) continue;
@@ -263,6 +271,7 @@ function renderRevenueChart() {
     if (collectedByDate.has(key)) collectedByDate.set(key, collectedByDate.get(key) + payment.amount);
   }
   const collectedAmounts = dates.map((date) => collectedByDate.get(chartKey(date)));
+  const profitCollectedAmounts = profitAmounts.map((profit, index) => profit + collectedAmounts[index]);
   const total = amounts.reduce((sum, amount) => sum + amount, 0);
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
@@ -271,7 +280,7 @@ function renderRevenueChart() {
     return orderTime >= oneDayAgo && orderTime <= now ? sum + order.amount : sum;
   }, 0);
   document.querySelector("#revenue-last-day").textContent = money(lastDayRevenue);
-  const maximum = Math.max(...amounts, ...collectedAmounts, 1000);
+  const maximum = Math.max(...amounts, ...collectedAmounts, ...profitCollectedAmounts, 1000);
   const magnitude = 10 ** Math.floor(Math.log10(maximum));
   const ratio = maximum / magnitude;
   const axisMaximum = (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 5 ? 5 : 10) * magnitude;
@@ -283,11 +292,17 @@ function renderRevenueChart() {
     x: (index / (collectedAmounts.length - 1)) * 640,
     y: 180 - (amount / axisMaximum) * 170
   }));
+  const profitCollectedPoints = profitCollectedAmounts.map((amount, index) => ({
+    x: (index / (profitCollectedAmounts.length - 1)) * 640,
+    y: 180 - (amount / axisMaximum) * 170
+  }));
   const linePath = points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   const collectedLinePath = collectedPoints.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const profitCollectedLinePath = profitCollectedPoints.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
   document.querySelector(".chart-line-path").setAttribute("d", linePath);
   document.querySelector(".chart-area-path").setAttribute("d", `${linePath} L${points[points.length - 1].x.toFixed(1)},190 L${points[0].x.toFixed(1)},190 Z`);
   document.querySelector(".chart-debt-line-path").setAttribute("d", collectedLinePath);
+  document.querySelector(".chart-profit-collected-line-path").setAttribute("d", profitCollectedLinePath);
   document.querySelector("#chart-y-labels").innerHTML = [4, 3, 2, 1, 0]
     .map((level) => `<span>${compactMoney(axisMaximum * level / 4)}</span>`).join("");
   const labelCount = isMonthly
@@ -305,7 +320,7 @@ function renderRevenueChart() {
     : period === "year" ? `Năm ${today.getFullYear()}`
       : `${days} ngày qua`;
   document.querySelector("#chart-summary-period").textContent = periodLabel;
-  document.querySelector(".chart-svg").setAttribute("aria-label", `Biểu đồ doanh thu và công nợ đã thu ${periodLabel}`);
+  document.querySelector(".chart-svg").setAttribute("aria-label", `Biểu đồ tổng doanh thu, công nợ đã thu và lãi sau giá vốn cộng công nợ đã thu ${periodLabel}`);
   const recentDates = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (6 - index));
@@ -346,7 +361,7 @@ function renderProducts() {
     <td>${productCell(product)}</td><td>${escapeHtml(product.id)}</td><td>${escapeHtml(product.unit)}</td>
     <td>${money(product.price)}</td><td>${product.stock} ${escapeHtml(product.unit)}</td>
     <td><span class="stock-badge ${product.stock <= 5 ? "low" : ""}">${product.stock <= 0 ? "• Hết hàng" : product.stock <= 5 ? "• Sắp hết hàng" : "• Còn hàng"}</span></td>
-    <td><div class="row-actions"><button class="row-action" data-edit-product="${escapeHtml(product.id)}" aria-label="Sửa ${escapeHtml(product.name)}">✎</button><button class="row-action delete" data-delete-product="${escapeHtml(product.id)}" aria-label="Xóa ${escapeHtml(product.name)}">×</button></div></td>
+    <td class="product-actions-column"><div class="row-actions"><button class="row-action" data-edit-product="${escapeHtml(product.id)}" aria-label="Sửa ${escapeHtml(product.name)}">✎</button><button class="row-action delete" data-delete-product="${escapeHtml(product.id)}" aria-label="Xóa ${escapeHtml(product.name)}">×</button></div></td>
   </tr>`).join("");
   document.querySelector("#products-table").innerHTML = rows;
   const productsPagination = document.querySelector("#products-pagination");
@@ -389,9 +404,9 @@ function renderOrders() {
   document.querySelector("#orders-profit").textContent = money(knownProfit);
   document.querySelector("#orders-profit-foot").textContent = `${ordersWithProfit}/${store.orders.length} đơn có giá vốn · chưa trừ chi phí khác`;
   document.querySelector("#orders-pending").textContent = store.orders.filter((order) => order.status !== "paid").length;
-  document.querySelector("#stat-orders").textContent = store.orders.length;
   document.querySelector("#stat-revenue").textContent = money(store.orders.reduce((sum, order) => sum + order.amount, 0));
   document.querySelector("#stat-profit").textContent = money(knownProfit);
+  document.querySelector("#stat-profit-collected").textContent = money(knownProfit + (Number.isFinite(store.collected) ? store.collected : 0));
   document.querySelector("#stat-profit-foot").textContent = `${ordersWithProfit}/${store.orders.length} đơn có giá vốn · chưa trừ chi phí khác`;
   renderRevenueChart();
 }
@@ -500,7 +515,15 @@ function renderDebtChart(groups) {
 
 function renderDebts() {
   const groups = groupedDebts();
-  document.querySelector("#debts-table").innerHTML = groups.map((group) => {
+  currentPage.debts = Math.min(currentPage.debts, Math.max(1, Math.ceil(groups.length / pageSize)));
+  const pageGroups = groups.slice((currentPage.debts - 1) * pageSize, currentPage.debts * pageSize);
+  document.querySelector("#overview-debts").innerHTML = groups.map((group) => `<tr>
+    <td>${escapeHtml(group.customer)}</td>
+    <td>${group.records.length} lần</td>
+    <td><strong>${money(group.amount)}</strong></td>
+  </tr>`).join("");
+  document.querySelector("#overview-debts-empty").classList.toggle("hidden", groups.length > 0);
+  document.querySelector("#debts-table").innerHTML = pageGroups.map((group) => {
     const latest = group.records[0];
     return `<tr>
       <td><button class="debt-customer-button" data-debt-details="${escapeHtml(group.key)}"><span class="profile-avatar">${escapeHtml(group.customer.trim().charAt(0).toUpperCase())}</span><strong>${escapeHtml(group.customer)}</strong></button></td>
@@ -509,6 +532,9 @@ function renderDebts() {
       <td><div class="row-actions"><button class="text-button" data-debt-details="${escapeHtml(group.key)}">Chi tiết</button><button class="text-button" data-collect-customer="${escapeHtml(group.key)}">Thu hết</button></div></td>
     </tr>`;
   }).join("");
+  const debtsPagination = document.querySelector("#debts-pagination");
+  debtsPagination.innerHTML = paginationMarkup("debts", currentPage.debts, groups.length);
+  debtsPagination.classList.toggle("hidden", groups.length <= pageSize);
   renderDebtChart(groups);
   document.querySelector("#debts-empty").classList.toggle("hidden", groups.length > 0);
   const total = store.debts.reduce((sum, debt) => sum + debt.amount, 0);
@@ -697,11 +723,9 @@ function productForm(product = {}) {
       <div class="form-field full"><label>Hình ảnh sản phẩm</label><div class="image-picker">
         <span class="image-preview" id="image-preview">${imageData ? `<img src="${escapeHtml(imageData)}" alt="Ảnh xem trước">` : escapeHtml(product.emoji || "🛍️")}</span>
         <div class="image-picker-controls">
-          <button class="button button-soft" type="button" data-toggle-image-options aria-expanded="false">＋ Thêm ảnh</button>
-          <div class="image-options hidden" id="image-options">
-            <label class="upload-button">▧ Chọn từ thư viện<input type="file" id="product-image" accept="image/*"></label>
-            <label class="upload-button">◎ Chụp ảnh<input type="file" id="product-camera" accept="image/*" capture="environment"></label>
-          </div>
+          <label class="upload-button">Chọn từ thư viện<input type="file" id="product-image" accept="image/*"></label>
+          <label class="upload-button">Chụp ảnh<input type="file" id="product-camera" accept="image/*" capture="environment"></label>
+          <small class="image-help">Ảnh sẽ được tối ưu và lưu cùng sản phẩm.</small>
         </div>
       </div></div>
       <div class="form-field"><label for="product-unit">Đơn vị tính *</label><select id="product-unit" name="unit" required>${unitOptions}</select></div>
@@ -717,15 +741,17 @@ function productForm(product = {}) {
 }
 
 async function handleImageUpload(event) {
-  const file = event.target.files?.[0];
+  const input = event.target;
+  const file = input.files?.[0];
   if (!file) return true;
   if (!file.type.startsWith("image/")) {
     showToast("Vui lòng chọn một tệp hình ảnh.", true);
+    input.value = "";
     return false;
   }
-  if (file.size > 5 * 1024 * 1024) {
-    showToast("Ảnh quá lớn. Vui lòng chọn ảnh dưới 5 MB.", true);
-    event.target.value = "";
+  if (file.size > 20 * 1024 * 1024) {
+    showToast("Ảnh quá lớn. Vui lòng chọn ảnh dưới 20 MB.", true);
+    input.value = "";
     return false;
   }
   let objectUrl;
@@ -738,22 +764,22 @@ async function handleImageUpload(event) {
       image.src = objectUrl;
     });
     const canvas = document.createElement("canvas");
-    const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+    const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
     canvas.width = Math.round(image.naturalWidth * scale);
     canvas.height = Math.round(image.naturalHeight * scale);
     canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-    let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.72));
+    let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.68));
     if (!blob || blob.type !== "image/webp") {
       throw new Error("Trình duyệt không hỗ trợ nén ảnh WebP.");
     }
-    if (blob.size > 600 * 1024) {
-      const smallerScale = Math.min(1, 900 / Math.max(image.naturalWidth, image.naturalHeight));
+    if (blob.size > 250 * 1024) {
+      const smallerScale = Math.min(1, 720 / Math.max(image.naturalWidth, image.naturalHeight));
       canvas.width = Math.round(image.naturalWidth * smallerScale);
       canvas.height = Math.round(image.naturalHeight * smallerScale);
       canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.58));
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.55));
     }
-    if (!blob || blob.size > 600 * 1024) {
+    if (!blob || blob.size > 250 * 1024) {
       throw new Error("Ảnh sau khi nén vẫn vượt quá dung lượng cho phép.");
     }
     const dataUrl = await new Promise((resolve, reject) => {
@@ -764,38 +790,45 @@ async function handleImageUpload(event) {
     });
     imageData = dataUrl;
     document.querySelector("#image-preview").innerHTML = `<img src="${escapeHtml(imageData)}" alt="Ảnh xem trước">`;
-    document.querySelector("#image-options").classList.add("hidden");
-    document.querySelector("[data-toggle-image-options]").setAttribute("aria-expanded", "false");
     return true;
   } catch (error) {
     showToast(error.message || "Không thể xử lý ảnh này. Vui lòng thử lại.", true);
     return false;
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
+    input.value = "";
   }
 }
 
-function orderProductOptions(selectedId = "", query = "") {
+function matchingOrderProducts(query = "") {
   const normalizedQuery = searchKey(query.trim());
-  const matchingProducts = store.products.filter((product) => {
+  return store.products.filter((product) => {
     return !normalizedQuery || searchKey(`${product.name} ${product.id}`).includes(normalizedQuery);
   });
-  const placeholder = normalizedQuery && matchingProducts.length === 0 ? "Không tìm thấy sản phẩm phù hợp" : "Chọn sản phẩm";
-  return `<option value="">${placeholder}</option>${matchingProducts.map((product) => `
-    <option value="${escapeHtml(product.id)}" ${product.stock <= 0 ? "disabled" : ""} ${product.id === selectedId ? "selected" : ""}>
-      ${escapeHtml(product.name)}${product.stock <= 0 ? " — Hết hàng" : ` — ${money(product.price)}`}
-    </option>`).join("")}`;
 }
 
-function renderOrderLine(selectedId = store.products.find((product) => product.stock > 0)?.id || "") {
+function orderProductResults(query = "") {
+  const products = matchingOrderProducts(query);
+  if (!products.length) return `<p class="order-product-empty">Không tìm thấy sản phẩm. Hãy thử tên hoặc mã khác.</p>`;
+  return products.map((product) => `
+    <button class="order-product-result" type="button" role="option" data-order-product-option="${escapeHtml(product.id)}" ${product.stock <= 0 ? "disabled" : ""}>
+      <span><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.id)} · ${product.stock <= 0 ? "Hết hàng" : `Còn ${product.stock} ${escapeHtml(product.unit)}`}</small></span>
+      <b>${money(product.price)}</b>
+    </button>`).join("");
+}
+
+function renderOrderLine(selectedId = "") {
   const product = store.products.find((item) => item.id === selectedId);
+  const resultsId = `order-product-results-${++nextOrderLineId}`;
   const row = document.createElement("div");
   row.className = "order-line-row";
   row.innerHTML = `
     <div class="order-product-picker">
-      <input class="order-product-search" type="search" aria-label="Tìm sản phẩm" placeholder="Tìm theo tên hoặc mã sản phẩm..." autocomplete="off">
-      <select class="order-product-select" aria-label="Chọn sản phẩm" required>
-        ${orderProductOptions(selectedId)}
+      <input class="order-product-search" type="search" role="combobox" aria-label="Tìm và chọn sản phẩm theo tên hoặc mã" aria-autocomplete="list" aria-expanded="false" aria-controls="${resultsId}" placeholder="Tìm sản phẩm theo tên hoặc mã..." autocomplete="off" value="${escapeHtml(product?.name || "")}">
+      <div class="order-product-results hidden" id="${resultsId}" role="listbox">${orderProductResults()}</div>
+      <select class="order-product-select" aria-label="Sản phẩm đã chọn" tabindex="-1" hidden>
+        <option value="">Chọn sản phẩm</option>
+        ${store.products.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}
       </select>
     </div>
     <input class="order-quantity" type="number" aria-label="Số lượng" min="1" step="1" max="${product?.stock || 1}" value="1" required>
@@ -822,6 +855,7 @@ function orderForm() {
     <div class="form-field full"><label for="order-customer">Tên khách hàng *</label><input id="order-customer" name="customer" required maxlength="60" placeholder="Tên khách hoặc Khách lẻ" value="Khách lẻ"></div>
     <div class="form-field full">
       <label>Sản phẩm và số lượng *</label>
+      <small class="order-product-hint">Tìm theo tên hoặc mã sản phẩm, sau đó chọn mặt hàng.</small>
       <div class="order-lines" id="order-lines"></div>
       <button class="button button-soft add-order-line" type="button" data-add-order-line>＋ Thêm mặt hàng</button>
     </div>
@@ -860,13 +894,19 @@ function adminProfileForm() {
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("button");
   if (!target) return;
-  if (target.matches(".profile-button")) adminProfileForm();
-  if (target.hasAttribute("data-toggle-image-options")) {
-    const options = dialogContent.querySelector("#image-options");
-    const opening = options.classList.contains("hidden");
-    options.classList.toggle("hidden", !opening);
-    target.setAttribute("aria-expanded", String(opening));
+  if (target.hasAttribute("data-order-product-option")) {
+    const row = target.closest(".order-line-row");
+    const select = row.querySelector(".order-product-select");
+    const search = row.querySelector(".order-product-search");
+    const product = store.products.find((item) => item.id === target.dataset.orderProductOption);
+    if (!product || product.stock <= 0) return;
+    select.value = product.id;
+    search.value = product.name;
+    search.setAttribute("aria-expanded", "false");
+    row.querySelector(".order-product-results").classList.add("hidden");
+    select.dispatchEvent(new Event("change", { bubbles: true }));
   }
+  if (target.matches(".profile-button")) adminProfileForm();
   if (target.hasAttribute("data-add-order-line")) {
     document.querySelector("#order-lines").append(renderOrderLine());
     updateOrderSummary();
@@ -878,10 +918,11 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.paginationList) {
     const list = target.dataset.paginationList;
     const page = Number(target.dataset.paginationPage);
-    if ((list === "products" || list === "orders") && Number.isInteger(page) && page >= 1) {
+    if ((list === "products" || list === "orders" || list === "debts") && Number.isInteger(page) && page >= 1) {
       currentPage[list] = page;
       if (list === "products") renderProducts();
-      else renderOrders();
+      else if (list === "orders") renderOrders();
+      else renderDebts();
     }
   }
   if (target.dataset.printSales) {
@@ -1110,14 +1151,70 @@ dialogForm.addEventListener("input", (event) => {
   if (event.target.matches(".order-product-search")) {
     const row = event.target.closest(".order-line-row");
     const select = row.querySelector(".order-product-select");
-    const selectedId = select.value;
-    select.innerHTML = orderProductOptions(selectedId, event.target.value);
-    if (select.value !== selectedId) {
-      row.querySelector(".order-quantity").value = "1";
-      const selectedProduct = store.products.find((product) => product.id === select.value);
-      row.querySelector(".order-quantity").max = selectedProduct?.stock || 1;
+    const results = row.querySelector(".order-product-results");
+    const selectedProduct = store.products.find((product) => product.id === select.value);
+    if (selectedProduct && event.target.value !== selectedProduct.name) {
+      select.value = "";
+      const quantity = row.querySelector(".order-quantity");
+      quantity.value = "1";
+      quantity.max = "1";
     }
+    event.target.setAttribute("aria-expanded", "true");
+    results.innerHTML = orderProductResults(event.target.value);
     updateOrderSummary();
+  }
+});
+dialogForm.addEventListener("focusin", (event) => {
+  if (!event.target.matches(".order-product-search")) return;
+  const row = event.target.closest(".order-line-row");
+  const select = row.querySelector(".order-product-select");
+  const selectedProduct = store.products.find((product) => product.id === select.value);
+  if (selectedProduct && event.target.value === selectedProduct.name) event.target.value = "";
+  event.target.setAttribute("aria-expanded", "true");
+  const results = row.querySelector(".order-product-results");
+  results.innerHTML = orderProductResults(event.target.value);
+  results.classList.remove("hidden");
+});
+dialogForm.addEventListener("focusout", (event) => {
+  if (!event.target.matches(".order-product-search")) return;
+  const search = event.target;
+  const row = search.closest(".order-line-row");
+  window.setTimeout(() => {
+    if (row.querySelector(".order-product-results").contains(document.activeElement)) return;
+    search.setAttribute("aria-expanded", "false");
+    row.querySelector(".order-product-results").classList.add("hidden");
+    const selectedProduct = store.products.find((product) => product.id === row.querySelector(".order-product-select").value);
+    if (selectedProduct && !search.value) search.value = selectedProduct.name;
+  }, 0);
+});
+dialogForm.addEventListener("keydown", (event) => {
+  if (event.target.matches(".order-product-search") && event.key === "ArrowDown") {
+    const firstOption = event.target.closest(".order-line-row").querySelector(".order-product-result:not(:disabled)");
+    if (firstOption) {
+      event.preventDefault();
+      firstOption.focus();
+    }
+    return;
+  }
+  if (event.target.matches(".order-product-search") && event.key === "Escape") {
+    event.target.setAttribute("aria-expanded", "false");
+    const row = event.target.closest(".order-line-row");
+    row.querySelector(".order-product-results").classList.add("hidden");
+    const selectedProduct = store.products.find((product) => product.id === row.querySelector(".order-product-select").value);
+    if (selectedProduct) event.target.value = selectedProduct.name;
+    event.target.blur();
+    return;
+  }
+  if (event.target.matches(".order-product-result") && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    const options = [...event.target.closest(".order-product-results").querySelectorAll(".order-product-result:not(:disabled)")];
+    const nextIndex = options.indexOf(event.target) + (event.key === "ArrowDown" ? 1 : -1);
+    if (options[nextIndex]) {
+      event.preventDefault();
+      options[nextIndex].focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      event.target.closest(".order-line-row").querySelector(".order-product-search").focus();
+    }
   }
 });
 dialogForm.addEventListener("change", (event) => {

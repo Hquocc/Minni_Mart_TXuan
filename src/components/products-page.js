@@ -14,7 +14,7 @@ class ProductsPage extends HTMLElement {
         <section class="panel data-panel">
           <div class="table-wrap">
             <table>
-              <thead><tr><th>SẢN PHẨM</th><th>MÃ SẢN PHẨM</th><th>ĐƠN VỊ</th><th>GIÁ BÁN</th><th>TỒN KHO</th><th>TRẠNG THÁI</th><th></th></tr></thead>
+              <thead><tr><th>SẢN PHẨM</th><th>MÃ SẢN PHẨM</th><th>ĐƠN VỊ</th><th>GIÁ BÁN</th><th>TỒN KHO</th><th>TRẠNG THÁI</th><th class="product-actions-column">THAO TÁC</th></tr></thead>
               <tbody id="products-table"></tbody>
             </table>
           </div>
