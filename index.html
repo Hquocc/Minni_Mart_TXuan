@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#fff7fa">
     <title>Minni Mart — Quản lý tạp hóa</title>
+    <link rel="icon" type="image/svg+xml" href="assets/minni-mart-icon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
@@ -34,6 +35,15 @@
         </div>
       </main>
     </div>
+    <section id="database-status" class="database-status active" role="status" aria-live="polite">
+      <div>
+        <p class="eyebrow">MINNI MART</p>
+        <h1 id="database-status-title">Đang kết nối dữ liệu</h1>
+        <p id="database-status-message">Đang tải dữ liệu cửa hàng từ MongoDB…</p>
+        <button id="database-retry" class="button button-primary" type="button" hidden>Thử kết nối lại</button>
+      </div>
+    </section>
+    <section id="sales-print-report" class="sales-print-report" aria-live="polite"></section>
     <app-dialog></app-dialog>
     <app-toast></app-toast>
   </body>

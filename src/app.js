@@ -82,24 +82,89 @@ store.admin = {
 };
 
 const money = (amount) => new Intl.NumberFormat("vi-VN").format(amount) + " ₫";
+const formatInputAmount = (value) => {
+  const digits = String(value).replace(/\D/g, "");
+  return digits ? new Intl.NumberFormat("vi-VN").format(Number(digits)) : "";
+};
+const parseInputAmount = (value) => Number(String(value).replace(/\D/g, ""));
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const searchKey = (value) => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").toLocaleLowerCase("vi");
 const idFor = (prefix, items) => `${prefix}${String(Math.max(0, ...items.map((item) => Number(item.id.slice(prefix.length)) || 0)) + 1).padStart(3, "0")}`;
 const dateLabel = (value) => new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 const timeLabel = (value) => new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }).format(new Date(value));
-const persist = () => {
+async function databaseRequest(method = "GET") {
+  let response;
+  try {
+    response = await fetch("/api/store", {
+      method,
+      headers: method === "PUT" ? { "Content-Type": "application/json" } : undefined,
+      body: method === "PUT" ? JSON.stringify({ store }) : undefined
+    });
+  } catch {
+    throw new Error("Không kết nối được API. Hãy chạy ứng dụng qua Vercel hoặc `npx vercel dev`.");
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("API không trả về dữ liệu JSON. Kiểm tra Vercel Deployment Protection và chạy ứng dụng qua Vercel hoặc `npx vercel dev`.");
+  }
+  if (!response.ok) throw new Error(result.error || "Không thể lưu dữ liệu lên máy chủ.");
+  return result;
+}
+
+async function persist() {
+  await databaseRequest("PUT");
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   } catch {
-    showToast("Không thể lưu dữ liệu trên thiết bị này.", true);
+    showToast("Dữ liệu đã lưu lên MongoDB nhưng không thể lưu bản sao trên thiết bị.", true);
   }
-};
+}
+
+async function commitStore(previousStore) {
+  const shell = document.querySelector(".app-shell");
+  const appDialog = document.querySelector("#app-dialog");
+  const submitButton = document.querySelector("#dialog-submit");
+  const closeButton = document.querySelector("[data-close-dialog]");
+  const previousLabel = submitButton.textContent;
+  shell.inert = true;
+  appDialog.inert = true;
+  submitButton.classList.add("is-loading");
+  submitButton.setAttribute("aria-busy", "true");
+  submitButton.disabled = true;
+  submitButton.textContent = "Đang lưu...";
+  closeButton.disabled = true;
+  try {
+    await persist();
+    return true;
+  } catch (error) {
+    store = previousStore;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    } catch {
+      showToast("Không thể lưu bản sao dữ liệu trên thiết bị.", true);
+    }
+    renderAll();
+    showToast(error.message || "Không thể lưu dữ liệu lên MongoDB.", true);
+    return false;
+  } finally {
+    shell.inert = false;
+    appDialog.inert = false;
+    submitButton.classList.remove("is-loading");
+    submitButton.removeAttribute("aria-busy");
+    submitButton.disabled = false;
+    submitButton.textContent = previousLabel;
+    closeButton.disabled = false;
+  }
+}
 
 const dialog = document.querySelector("#app-dialog");
 const dialogForm = document.querySelector("#dialog-form");
 const dialogContent = document.querySelector("#dialog-content");
 let editingProductId = null;
 let imageData = "";
+let imageProcessing = Promise.resolve(true);
 let toastTimer;
 const pageSize = 10;
 const currentPage = { products: 1, orders: 1 };
@@ -124,14 +189,19 @@ function productCell(product) {
   return `<div class="product-cell">${productThumb(product)}<span><strong>${escapeHtml(product.name)}</strong></span></div>`;
 }
 
+function productStockPriority(product) {
+  return product.stock <= 0 ? 0 : product.stock <= 5 ? 1 : 2;
+}
+
 function dateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function compactMoney(amount) {
-  if (amount >= 1_000_000) return `${Number((amount / 1_000_000).toFixed(1))}tr`;
-  if (amount >= 1_000) return `${Number((amount / 1_000).toFixed(1))}k`;
-  return String(amount);
+  const formatter = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+  if (amount >= 1_000_000) return `${formatter.format(amount / 1_000_000)} tr`;
+  if (amount >= 1_000) return `${formatter.format(amount / 1_000)} k`;
+  return formatter.format(amount);
 }
 
 function paginationMarkup(list, page, total) {
@@ -243,28 +313,30 @@ function renderProducts() {
     const matchesText = !search || `${product.name} ${product.id}`.toLocaleLowerCase("vi").includes(search);
     const matchesStock = !stockFilter || (stockFilter === "low" ? product.stock <= 5 : product.stock > 5);
     return matchesText && matchesStock;
-  });
+  }).sort((a, b) => productStockPriority(a) - productStockPriority(b));
   currentPage.products = Math.min(currentPage.products, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const pageProducts = filtered.slice((currentPage.products - 1) * pageSize, currentPage.products * pageSize);
   const rows = pageProducts.map((product) => `<tr>
     <td>${productCell(product)}</td><td>${escapeHtml(product.id)}</td><td>${escapeHtml(product.unit)}</td>
     <td>${money(product.price)}</td><td>${product.stock} ${escapeHtml(product.unit)}</td>
-    <td><span class="stock-badge ${product.stock <= 5 ? "low" : ""}">${product.stock <= 5 ? "• Sắp hết hàng" : "• Còn hàng"}</span></td>
+    <td><span class="stock-badge ${product.stock <= 5 ? "low" : ""}">${product.stock <= 0 ? "• Hết hàng" : product.stock <= 5 ? "• Sắp hết hàng" : "• Còn hàng"}</span></td>
     <td><div class="row-actions"><button class="row-action" data-edit-product="${escapeHtml(product.id)}" aria-label="Sửa ${escapeHtml(product.name)}">✎</button><button class="row-action delete" data-delete-product="${escapeHtml(product.id)}" aria-label="Xóa ${escapeHtml(product.name)}">×</button></div></td>
   </tr>`).join("");
   document.querySelector("#products-table").innerHTML = rows;
   const productsPagination = document.querySelector("#products-pagination");
   productsPagination.innerHTML = paginationMarkup("products", currentPage.products, filtered.length);
   productsPagination.classList.toggle("hidden", filtered.length <= pageSize);
-  document.querySelector("#overview-products").innerHTML = store.products.slice(0, 5).map((product) => `<tr>
+  document.querySelector("#overview-products").innerHTML = [...store.products]
+    .sort((a, b) => productStockPriority(a) - productStockPriority(b))
+    .slice(0, 5).map((product) => `<tr>
     <td>${productCell(product)}</td><td>${escapeHtml(product.id)}</td><td>${escapeHtml(product.unit)}</td><td>${money(product.price)}</td>
-    <td>${product.stock} ${escapeHtml(product.unit)}</td><td><span class="stock-badge ${product.stock <= 5 ? "low" : ""}">• ${product.stock <= 5 ? "Sắp hết hàng" : "Còn hàng"}</span></td>
+    <td>${product.stock} ${escapeHtml(product.unit)}</td><td><span class="stock-badge ${product.stock <= 5 ? "low" : ""}">• ${product.stock <= 0 ? "Hết hàng" : product.stock <= 5 ? "Sắp hết hàng" : "Còn hàng"}</span></td>
   </tr>`).join("");
   document.querySelector("#products-empty").classList.toggle("hidden", filtered.length > 0);
   document.querySelector("#product-result-count").textContent = `${filtered.length} sản phẩm`;
   document.querySelector("#product-count").textContent = store.products.length;
   document.querySelector("#stat-products").textContent = store.products.length;
-  document.querySelector("#low-stock-count").textContent = `${store.products.filter((item) => item.stock <= 5).length} sắp hết hàng`;
+  document.querySelector("#low-stock-count").textContent = `${store.products.filter((item) => item.stock <= 5).length} sắp hết/hết hàng`;
 }
 
 function renderOrders() {
@@ -296,6 +368,70 @@ function renderOrders() {
   document.querySelector("#stat-profit").textContent = money(knownProfit);
   document.querySelector("#stat-profit-foot").textContent = `${ordersWithProfit}/${store.orders.length} đơn có giá vốn · chưa trừ chi phí khác`;
   renderRevenueChart();
+}
+
+function printSalesHistory(days) {
+  const endDate = new Date();
+  const startDate = new Date(endDate);
+  startDate.setHours(0, 0, 0, 0);
+  startDate.setDate(startDate.getDate() - days + 1);
+  const endKey = dateKey(endDate);
+  const startKey = dateKey(startDate);
+  const orders = store.orders
+    .filter((order) => {
+      const key = dateKey(new Date(order.date));
+      return key >= startKey && key <= endKey;
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const total = orders.reduce((sum, order) => sum + order.amount, 0);
+  const knownProfitOrders = orders.filter((order) => Number.isFinite(order.profit));
+  const profit = knownProfitOrders.reduce((sum, order) => sum + order.profit, 0);
+  const rangeLabel = days === 1
+    ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(endDate)
+    : `${dateLabel(startDate)} – ${dateLabel(endDate)}`;
+  const rows = orders.map((order) => {
+    const items = order.lines?.length
+      ? order.lines.map((line) => `${escapeHtml(line.name)} × ${line.quantity} ${escapeHtml(line.unit || "")}`).join("<br>")
+      : "Đơn cũ — không có chi tiết mặt hàng";
+    const status = order.status === "debt" ? "Ghi nợ" : order.status === "pending" ? "Chờ xử lý" : "Đã thanh toán";
+    return `<tr>
+      <td>${escapeHtml(order.id)}</td>
+      <td>${timeLabel(order.date)}</td>
+      <td>${escapeHtml(order.customer)}</td>
+      <td>${items}</td>
+      <td>${escapeHtml(order.payment || status)}</td>
+      <td>${status}</td>
+      <td class="print-number">${money(order.amount)}</td>
+      <td class="print-number">${Number.isFinite(order.profit) ? money(order.profit) : "—"}</td>
+    </tr>`;
+  }).join("");
+  const report = document.querySelector("#sales-print-report");
+  report.innerHTML = `
+    <header class="print-report-header">
+      <p>MINNI MART · LỊCH SỬ BÁN HÀNG</p>
+      <h1>Báo cáo bán hàng ${days === 1 ? "trong ngày" : "7 ngày gần nhất"}</h1>
+      <p>Thời gian: ${escapeHtml(rangeLabel)}</p>
+      <p>Ngày in: ${escapeHtml(timeLabel(endDate.toISOString()))}</p>
+    </header>
+    <div class="print-report-summary">
+      <span>Số đơn: <strong>${orders.length}</strong></span>
+      <span>Tổng doanh thu: <strong>${money(total)}</strong></span>
+      <span>Lợi nhuận đã tính: <strong>${money(profit)}</strong> (${knownProfitOrders.length}/${orders.length} đơn)</span>
+    </div>
+    ${orders.length
+      ? `<table class="print-report-table">
+          <thead><tr><th>Mã đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Sản phẩm</th><th>Thanh toán</th><th>Trạng thái</th><th>Doanh thu</th><th>Lợi nhuận</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><th colspan="6">Tổng cộng</th><th class="print-number">${money(total)}</th><th class="print-number">${money(profit)}</th></tr></tfoot>
+        </table>`
+      : `<p class="print-report-empty">Không có đơn hàng trong khoảng thời gian này.</p>`}
+    <footer class="print-report-footer">Doanh thu gồm cả đơn ghi nợ. Lợi nhuận chưa trừ các chi phí vận hành.</footer>`;
+  document.body.classList.add("print-mode");
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("print-mode");
+    report.replaceChildren();
+  }, { once: true });
+  window.print();
 }
 
 function customerKey(customer) {
@@ -376,6 +512,54 @@ function renderAll() {
   renderUnits();
 }
 
+async function initializeDatabase() {
+  const status = document.querySelector("#database-status");
+  const title = document.querySelector("#database-status-title");
+  const message = document.querySelector("#database-status-message");
+  const retry = document.querySelector("#database-retry");
+  const shell = document.querySelector(".app-shell");
+  status.classList.add("active");
+  retry.hidden = true;
+  title.textContent = "Đang kết nối dữ liệu";
+  message.textContent = "Đang tải dữ liệu cửa hàng từ MongoDB…";
+  shell.inert = true;
+
+  try {
+    const result = await databaseRequest();
+    if (result.store) {
+      if (!Array.isArray(result.store.products)
+        || !Array.isArray(result.store.orders)
+        || !Array.isArray(result.store.debts)
+        || !Array.isArray(result.store.units)
+        || !result.store.admin
+        || typeof result.store.admin !== "object") {
+        throw new Error("Dữ liệu cửa hàng trên MongoDB không hợp lệ.");
+      }
+      store = {
+        ...initialData,
+        ...result.store,
+        admin: { ...initialData.admin, ...result.store.admin }
+      };
+    } else {
+      await persist();
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    } catch {
+      showToast("Dữ liệu đã kết nối nhưng không thể lưu bản sao trên thiết bị.", true);
+    }
+    renderAll();
+    shell.inert = false;
+    status.classList.remove("active");
+    if (storageWarning) showToast(storageWarning, true);
+  } catch (error) {
+    title.textContent = "Chưa kết nối được dữ liệu";
+    message.textContent = error.message || "Kiểm tra cấu hình MongoDB và thử lại.";
+    retry.hidden = false;
+    shell.inert = true;
+  }
+}
+
 function showPage(name) {
   document.querySelectorAll(".page-section").forEach((section) => section.classList.toggle("active", section.id === `page-${name}`));
   document.querySelectorAll(".nav-link").forEach((link) => link.classList.toggle("active", link.dataset.page === name));
@@ -390,6 +574,8 @@ function openDialog(title, content, submitLabel = "Lưu thông tin", options = {
   const submitButton = document.querySelector("#dialog-submit");
   submitButton.textContent = submitLabel;
   submitButton.hidden = options.hideSubmit === true;
+  submitButton.type = "submit";
+  delete submitButton.dataset.collectCustomer;
   document.querySelector("[data-close-dialog]").textContent = options.closeLabel || "Hủy";
   dialogContent.innerHTML = content;
   dialog.showModal();
@@ -413,11 +599,15 @@ function debtDetails(groupKey) {
   openDialog(`Công nợ — ${group.customer}`, `
     <div class="debt-details-summary"><span>${group.records.length} lần ghi nợ</span><strong>Tổng còn nợ: ${money(group.amount)}</strong></div>
     <div class="debt-details-list">${records}</div>
-  `, "", { hideSubmit: true, closeLabel: "Đóng" });
+  `, "Thu hết", { closeLabel: "Đóng" });
+  const collectAllButton = document.querySelector("#dialog-submit");
+  collectAllButton.type = "button";
+  collectAllButton.dataset.collectCustomer = group.key;
 }
 
-function collectDebts(debts) {
+async function collectDebts(debts) {
   if (!debts.length) return;
+  const previousStore = structuredClone(store);
   const debtIds = new Set(debts.map((debt) => debt.id));
   const orderIds = new Set(debts.map((debt) => debt.orderId).filter(Boolean));
   const amount = debts.reduce((sum, debt) => sum + debt.amount, 0);
@@ -429,7 +619,7 @@ function collectDebts(debts) {
     }
   });
   store.debts = store.debts.filter((debt) => !debtIds.has(debt.id));
-  persist();
+  if (!await commitStore(previousStore)) return;
   renderAll();
   dialog.close();
   showToast(`Đã thu ${money(amount)} công nợ.`);
@@ -439,6 +629,7 @@ function productForm(product = {}) {
   editingProductId = product.id || null;
   imageData = product.image || "";
   const unitOptions = [...new Set([...store.units, product.unit].filter(Boolean))].map((unit) => `<option ${unit === product.unit ? "selected" : ""}>${escapeHtml(unit)}</option>`).join("");
+  imageProcessing = Promise.resolve(true);
   openDialog(product.id ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm", `
     <div class="form-grid">
       <div class="form-field full"><label for="product-name">Tên sản phẩm *</label><input id="product-name" name="name" required maxlength="80" placeholder="Ví dụ: Sữa tươi không đường" value="${escapeHtml(product.name || "")}"></div>
@@ -453,34 +644,74 @@ function productForm(product = {}) {
         </div>
       </div></div>
       <div class="form-field"><label for="product-unit">Đơn vị tính *</label><select id="product-unit" name="unit" required>${unitOptions}</select></div>
-      <div class="form-field"><label for="product-purchase-price">Giá nhập (₫) *</label><input id="product-purchase-price" name="purchasePrice" type="number" min="0" step="1" required placeholder="0" value="${product.purchasePrice ?? ""}"></div>
-      <div class="form-field"><label for="product-price">Giá bán (₫) *</label><input id="product-price" name="price" type="number" min="0" step="1" required placeholder="0" value="${product.price ?? ""}"></div>
+      <div class="form-field"><label for="product-purchase-price">Giá nhập (₫) *</label><input id="product-purchase-price" class="money-input" name="purchasePrice" type="text" inputmode="numeric" autocomplete="off" required placeholder="Ví dụ: 200.000" value="${product.purchasePrice == null ? "" : formatInputAmount(product.purchasePrice)}"></div>
+      <div class="form-field"><label for="product-price">Giá bán (₫) *</label><input id="product-price" class="money-input" name="price" type="text" inputmode="numeric" autocomplete="off" required placeholder="Ví dụ: 200.000" value="${product.price == null ? "" : formatInputAmount(product.price)}"></div>
       <div class="form-field"><label for="product-stock">Số lượng tồn *</label><input id="product-stock" name="stock" type="number" min="0" step="1" required placeholder="0" value="${product.stock ?? ""}"></div>
     </div>`);
-  dialogContent.querySelectorAll("#product-image, #product-camera").forEach((input) => input.addEventListener("change", handleImageUpload));
+  dialogContent.querySelectorAll("#product-image, #product-camera").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      imageProcessing = handleImageUpload(event);
+    });
+  });
 }
 
-function handleImageUpload(event) {
+async function handleImageUpload(event) {
   const file = event.target.files?.[0];
-  if (!file) return;
+  if (!file) return true;
   if (!file.type.startsWith("image/")) {
     showToast("Vui lòng chọn một tệp hình ảnh.", true);
-    return;
+    return false;
   }
   if (file.size > 5 * 1024 * 1024) {
     showToast("Ảnh quá lớn. Vui lòng chọn ảnh dưới 5 MB.", true);
     event.target.value = "";
-    return;
+    return false;
   }
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    imageData = String(reader.result);
+  let objectUrl;
+  try {
+    objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", () => reject(new Error("Không thể mở ảnh này.")), { once: true });
+      image.src = objectUrl;
+    });
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.round(image.naturalWidth * scale);
+    canvas.height = Math.round(image.naturalHeight * scale);
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    let blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.72));
+    if (!blob || blob.type !== "image/webp") {
+      throw new Error("Trình duyệt không hỗ trợ nén ảnh WebP.");
+    }
+    if (blob.size > 600 * 1024) {
+      const smallerScale = Math.min(1, 900 / Math.max(image.naturalWidth, image.naturalHeight));
+      canvas.width = Math.round(image.naturalWidth * smallerScale);
+      canvas.height = Math.round(image.naturalHeight * smallerScale);
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.58));
+    }
+    if (!blob || blob.size > 600 * 1024) {
+      throw new Error("Ảnh sau khi nén vẫn vượt quá dung lượng cho phép.");
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => resolve(String(reader.result)), { once: true });
+      reader.addEventListener("error", () => reject(new Error("Không thể đọc ảnh này. Vui lòng thử lại.")), { once: true });
+      reader.readAsDataURL(blob);
+    });
+    imageData = dataUrl;
     document.querySelector("#image-preview").innerHTML = `<img src="${escapeHtml(imageData)}" alt="Ảnh xem trước">`;
     document.querySelector("#image-options").classList.add("hidden");
     document.querySelector("[data-toggle-image-options]").setAttribute("aria-expanded", "false");
-  });
-  reader.addEventListener("error", () => showToast("Không thể đọc ảnh này. Vui lòng thử lại.", true));
-  reader.readAsDataURL(file);
+    return true;
+  } catch (error) {
+    showToast(error.message || "Không thể xử lý ảnh này. Vui lòng thử lại.", true);
+    return false;
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
 }
 
 function orderProductOptions(selectedId = "", query = "") {
@@ -548,7 +779,7 @@ function debtForm() {
   openDialog("Ghi nợ khách hàng", `<div class="form-grid">
     <div class="form-field"><label for="debt-customer">Tên khách hàng *</label><input id="debt-customer" name="customer" required maxlength="60" placeholder="Tên khách hàng"></div>
     <div class="form-field"><label for="debt-phone">Số điện thoại</label><input id="debt-phone" name="phone" type="tel" maxlength="20" placeholder="09xx xxx xxx"></div>
-    <div class="form-field full"><label for="debt-amount">Số tiền ghi nợ (₫) *</label><input id="debt-amount" name="amount" type="number" required min="1" step="1" placeholder="0"></div>
+    <div class="form-field full"><label for="debt-amount">Số tiền ghi nợ (₫) *</label><input id="debt-amount" class="money-input" name="amount" type="text" inputmode="numeric" autocomplete="off" required placeholder="Ví dụ: 200.000"></div>
     <div class="form-field full"><label for="debt-note">Ghi chú</label><textarea id="debt-note" name="note" maxlength="160" placeholder="Mặt hàng hoặc lời nhắn..."></textarea></div>
   </div>`, "Lưu khoản nợ");
 }
@@ -565,7 +796,7 @@ function adminProfileForm() {
   </div>`, "Lưu thông tin");
 }
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const target = event.target.closest("button");
   if (!target) return;
   if (target.matches(".profile-button")) adminProfileForm();
@@ -592,6 +823,9 @@ document.addEventListener("click", (event) => {
       else renderOrders();
     }
   }
+  if (target.dataset.printSales) {
+    printSalesHistory(Number(target.dataset.printSales));
+  }
   if (target.dataset.debtDetails) debtDetails(target.dataset.debtDetails);
   if (target.dataset.page) showPage(target.dataset.page);
   if (target.dataset.navigate) showPage(target.dataset.navigate);
@@ -606,20 +840,24 @@ document.addEventListener("click", (event) => {
   if (target.dataset.deleteProduct) {
     const product = store.products.find((item) => item.id === target.dataset.deleteProduct);
     if (product && window.confirm(`Xóa sản phẩm "${product.name}" khỏi danh sách?`)) {
+      const previousStore = structuredClone(store);
       store.products = store.products.filter((item) => item.id !== product.id);
-      persist(); renderAll(); showToast("Đã xóa sản phẩm.");
+      if (await commitStore(previousStore)) {
+        renderAll();
+        showToast("Đã xóa sản phẩm.");
+      }
     }
   }
   if (target.dataset.collectDebt) {
     const debt = store.debts.find((item) => item.id === target.dataset.collectDebt);
     if (debt && window.confirm(`Xác nhận đã thu ${money(debt.amount)} từ ${debt.customer}?`)) {
-      collectDebts([debt]);
+      await collectDebts([debt]);
     }
   }
   if (target.dataset.collectCustomer) {
     const group = groupedDebts().find((item) => item.key === target.dataset.collectCustomer);
     if (group && window.confirm(`Xác nhận đã thu toàn bộ ${money(group.amount)} từ ${group.customer}?`)) {
-      collectDebts(group.records);
+      await collectDebts(group.records);
     }
   }
   if (target.dataset.settleOrder) {
@@ -627,12 +865,16 @@ document.addEventListener("click", (event) => {
     if (order) {
       const debt = store.debts.find((item) => item.orderId === order.id);
       if (debt) {
-        collectDebts([debt]);
+        await collectDebts([debt]);
       } else {
+        const previousStore = structuredClone(store);
         order.status = "paid";
         order.payment = "Đã thu công nợ";
         store.collected = (store.collected || 0) + order.amount;
-        persist(); renderAll(); showToast("Đơn hàng đã được đánh dấu thanh toán.");
+        if (await commitStore(previousStore)) {
+          renderAll();
+          showToast("Đơn hàng đã được đánh dấu thanh toán.");
+        }
       }
     }
   }
@@ -641,25 +883,31 @@ document.addEventListener("click", (event) => {
     if (store.products.some((product) => product.unit === unit)) {
       showToast("Không thể xóa đơn vị đang được sản phẩm sử dụng.", true);
     } else if (window.confirm(`Xóa đơn vị "${unit}"?`)) {
+      const previousStore = structuredClone(store);
       store.units = store.units.filter((item) => item !== unit);
-      persist(); renderAll(); showToast("Đã xóa đơn vị tính.");
+      if (await commitStore(previousStore)) {
+        renderAll();
+        showToast("Đã xóa đơn vị tính.");
+      }
     }
   }
   if (target.matches(".dialog-close, [data-close-dialog]")) dialog.close();
 });
 
-dialogForm.addEventListener("submit", (event) => {
+dialogForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(dialogForm);
   if (dialogContent.querySelector("#product-name")) {
+    if (!await imageProcessing) return;
     const name = String(form.get("name")).trim();
     const unit = String(form.get("unit"));
-    const purchasePrice = Number(form.get("purchasePrice"));
-    const price = Number(form.get("price"));
+    const purchasePrice = parseInputAmount(form.get("purchasePrice"));
+    const price = parseInputAmount(form.get("price"));
     const stock = Number(form.get("stock"));
     if (!name || !unit || !Number.isFinite(purchasePrice) || purchasePrice < 0 || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
       showToast("Vui lòng kiểm tra lại thông tin sản phẩm.", true); return;
     }
+    const previousStore = structuredClone(store);
     const product = { id: editingProductId || idFor("SP", store.products), name, unit, purchasePrice, price, stock, image: imageData, emoji: "🛍️" };
     if (editingProductId) store.products = store.products.map((item) => {
       if (item.id !== editingProductId) return item;
@@ -668,7 +916,8 @@ dialogForm.addEventListener("submit", (event) => {
       return { ...existing, ...product };
     });
     else { store.products.unshift(product); currentPage.products = 1; }
-    persist(); renderAll(); dialog.close(); showToast(editingProductId ? "Đã cập nhật sản phẩm." : "Đã thêm sản phẩm.");
+    if (!await commitStore(previousStore)) return;
+    renderAll(); dialog.close(); showToast(editingProductId ? "Đã cập nhật sản phẩm." : "Đã thêm sản phẩm.");
     return;
   }
   if (dialogContent.querySelector("#order-customer")) {
@@ -713,6 +962,7 @@ dialogForm.addEventListener("submit", (event) => {
       payment: recordDebt ? "Ghi nợ" : payment,
       status: recordDebt ? "debt" : "paid"
     };
+    const previousStore = structuredClone(store);
     for (const line of orderLines) {
       const product = store.products.find((item) => item.id === line.productId);
       product.stock -= line.quantity;
@@ -731,22 +981,28 @@ dialogForm.addEventListener("submit", (event) => {
         lines: orderLines
       });
     }
-    persist(); renderAll(); dialog.close(); showToast("Đã tạo đơn hàng.");
+    if (!await commitStore(previousStore)) return;
+    renderAll(); dialog.close(); showToast("Đã tạo đơn hàng.");
     return;
   }
   if (dialogContent.querySelector("#debt-customer")) {
     const customer = String(form.get("customer")).trim();
-    const amount = Number(form.get("amount"));
+    const amount = parseInputAmount(form.get("amount"));
     if (!customer || !Number.isFinite(amount) || amount <= 0) { showToast("Vui lòng nhập tên khách và số tiền hợp lệ.", true); return; }
+    const previousStore = structuredClone(store);
     store.debts.unshift({ id: idFor("CN", store.debts), customer, phone: String(form.get("phone") || "").trim(), date: new Date().toISOString(), note: String(form.get("note") || "").trim(), amount });
-    persist(); renderAll(); dialog.close(); showToast("Đã ghi nhận công nợ.");
+    if (!await commitStore(previousStore)) return;
+    renderAll(); dialog.close(); showToast("Đã ghi nhận công nợ.");
     return;
   }
   if (dialogContent.querySelector("#unit-name")) {
     const unit = String(form.get("unit")).trim();
     if (!unit) { showToast("Vui lòng nhập tên đơn vị.", true); return; }
     if (store.units.some((item) => item.toLocaleLowerCase("vi") === unit.toLocaleLowerCase("vi"))) { showToast("Đơn vị này đã có trong danh sách.", true); return; }
-    store.units.push(unit); persist(); renderAll(); dialog.close(); showToast("Đã thêm đơn vị tính.");
+    const previousStore = structuredClone(store);
+    store.units.push(unit);
+    if (!await commitStore(previousStore)) return;
+    renderAll(); dialog.close(); showToast("Đã thêm đơn vị tính.");
     return;
   }
   if (dialogContent.querySelector("#admin-name")) {
@@ -754,8 +1010,10 @@ dialogForm.addEventListener("submit", (event) => {
     const phone = String(form.get("phone") || "").trim();
     const email = String(form.get("email") || "").trim();
     if (!name) { showToast("Vui lòng nhập họ và tên.", true); return; }
+    const previousStore = structuredClone(store);
     store.admin = { name, phone, email };
-    persist(); renderAll(); dialog.close(); showToast("Đã cập nhật thông tin quản trị viên.");
+    if (!await commitStore(previousStore)) return;
+    renderAll(); dialog.close(); showToast("Đã cập nhật thông tin quản trị viên.");
   }
 });
 
@@ -773,6 +1031,19 @@ document.querySelector("#sidebar-toggle").addEventListener("click", (event) => {
 });
 document.querySelector("#mobile-menu").addEventListener("click", () => document.querySelector("#sidebar").classList.toggle("open"));
 dialogForm.addEventListener("input", (event) => {
+  if (event.target.matches(".money-input")) {
+    const input = event.target;
+    const digitsBeforeCaret = input.value.slice(0, input.selectionStart).replace(/\D/g, "").length;
+    input.value = formatInputAmount(input.value);
+    let caret = 0;
+    let digitsSeen = 0;
+    while (caret < input.value.length && digitsSeen < digitsBeforeCaret) {
+      if (/\d/.test(input.value[caret])) digitsSeen += 1;
+      caret += 1;
+    }
+    input.setSelectionRange(caret, caret);
+    return;
+  }
   if (event.target.matches(".order-quantity")) updateOrderSummary();
   if (event.target.matches(".order-product-search")) {
     const row = event.target.closest(".order-line-row");
@@ -797,8 +1068,8 @@ dialogForm.addEventListener("change", (event) => {
   }
 });
 document.querySelector("#chart-period").addEventListener("change", renderRevenueChart);
+document.querySelector("#database-retry").addEventListener("click", initializeDatabase);
 const today = new Date();
 document.querySelector("#today-label").textContent = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(today);
 document.querySelector("#greeting-date").textContent = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "long" }).format(today).toLocaleUpperCase("vi");
-renderAll();
-if (storageWarning) showToast(storageWarning, true);
+initializeDatabase();

@@ -35,7 +35,6 @@ class PageFooter extends HTMLElement {
   connectedCallback() {
     this.innerHTML = `
       <footer class="page-footer">
-        <span>Minni Mart <span>♥</span> Chăm chút từng món hàng</span>
         <span>Phiên bản 1.0</span>
       </footer>`;
   }

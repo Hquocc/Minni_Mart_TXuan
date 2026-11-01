@@ -8,7 +8,7 @@ class ProductsPage extends HTMLElement {
         </div>
         <div class="toolbar panel">
           <label class="search-box"><span>⌕</span><input id="product-search" type="search" placeholder="Tìm tên hoặc mã sản phẩm..." aria-label="Tìm sản phẩm"></label>
-          <select class="filter-select" id="stock-filter" aria-label="Lọc theo tồn kho"><option value="">Tất cả tồn kho</option><option value="low">Sắp hết hàng</option><option value="available">Còn hàng</option></select>
+          <select class="filter-select" id="stock-filter" aria-label="Lọc theo tồn kho"><option value="">Tất cả tồn kho</option><option value="low">Sắp hết / hết hàng</option><option value="available">Còn hàng</option></select>
           <span class="toolbar-spacer"></span><span class="result-count" id="product-result-count"></span>
         </div>
         <section class="panel data-panel">

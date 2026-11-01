@@ -14,9 +14,15 @@ class OrdersPage extends HTMLElement {
         </div>
         <section class="panel data-panel">
           <panel-heading title="Danh sách đơn hàng" subtitle="Lịch sử bán hàng mới nhất">
-            <select class="filter-select" id="order-filter" aria-label="Lọc đơn hàng">
-              <option value="">Tất cả đơn hàng</option><option value="paid">Đã thanh toán</option><option value="debt">Ghi vào sổ công nợ</option>
-            </select>
+            <div class="order-tools">
+              <select class="filter-select" id="order-filter" aria-label="Lọc đơn hàng">
+                <option value="">Tất cả đơn hàng</option><option value="paid">Đã thanh toán</option><option value="debt">Ghi vào sổ công nợ</option>
+              </select>
+              <div class="print-actions" aria-label="In lịch sử bán hàng">
+                <button class="button button-soft" type="button" data-print-sales="1">In hôm nay</button>
+                <button class="button button-soft" type="button" data-print-sales="7">In 7 ngày</button>
+              </div>
+            </div>
           </panel-heading>
           <div class="table-wrap">
             <table>

@@ -1,0 +1,10 @@
+{
+  "name": "minni-mart",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "mongodb": "^6.0.0"
+  }
+}

@@ -17,6 +17,12 @@
 body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); font-size: 14px; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
+.database-status { display: none; }
+.database-status.active { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: var(--canvas); text-align: center; }
+.database-status > div { width: min(100%, 420px); padding: 30px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: 0 12px 40px #4f344510; }
+.database-status .eyebrow { margin-bottom: 10px; }
+.database-status h1 { font-size: 24px; }
+.database-status p:not(.eyebrow) { margin: 12px 0 18px; color: var(--muted); line-height: 1.6; }
 store-sidebar, store-topbar, dashboard-page, products-page, orders-page, debts-page, units-page, app-dialog, app-toast { display: contents; }
 panel-heading, page-footer { display: block; }
 .stats-grid stat-card { display: contents; }
@@ -72,7 +78,11 @@ h1 { margin-bottom: 5px; font: 700 27px "Quicksand", sans-serif; letter-spacing:
 .wave { color: #e99bb6; font-size: 22px; }
 .heading-subtitle { margin: 0; color: #9a8f99; font-size: 11px; }
 .button { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; padding: 0 16px; border: 0; border-radius: 9px; font-size: 11px; font-weight: 700; cursor: pointer; transition: transform .18s, box-shadow .18s, background .18s; }
+.button[hidden] { display: none; }
 .button:hover { transform: translateY(-1px); }
+.button:disabled { cursor: wait; opacity: .78; }
+.button.is-loading::before { width: 13px; height: 13px; flex: 0 0 13px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; content: ""; animation: button-spin .7s linear infinite; }
+@keyframes button-spin { to { transform: rotate(360deg); } }
 .button-primary { background: #e98eae; box-shadow: 0 5px 12px #e98eae2e; color: #fff; }
 .button-primary:hover { background: #dd7d9f; box-shadow: 0 6px 15px #e98eae4a; }
 .button-primary span { font-size: 16px; font-weight: 400; }
@@ -84,8 +94,6 @@ h1 { margin-bottom: 5px; font: 700 27px "Quicksand", sans-serif; letter-spacing:
 .stat-top { display: flex; align-items: center; justify-content: space-between; color: #988d98; font-size: 10px; }
 .stat-icon { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 9px; font-size: 13px; }
 .pink-icon { background: #fff0f5; color: #e283a5; }
-.lilac-icon { background: #f4efff; color: #a28ad8; }
-.peach-icon { background: #fff3e9; color: #e3a06a; }
 .mint-icon { background: #eaf8f1; color: #65b58d; }
 .stat-card > strong { display: block; margin: 10px 0 5px; font: 700 23px "Quicksand", sans-serif; letter-spacing: -.5px; }
 .stat-foot { position: relative; z-index: 1; color: #a99ea8; font-size: 9px; }
@@ -257,7 +265,11 @@ tbody tr:last-child td { border-bottom: 0; }
 .order-summary > div { display: grid; gap: 6px; }
 .order-summary span { color: #9e929d; font-size: 9px; }
 .order-summary strong { color: #d66f96; font-size: 13px; }
+.order-tools { display: grid; justify-items: end; gap: 7px; }
+.print-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.print-actions .button { min-height: 30px; padding: 0 10px; font-size: 10px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 21px; padding-top: 15px; border-top: 1px solid #f3edf0; }
+.sales-print-report { display: none; }
 .toast { position: fixed; right: 24px; bottom: 22px; z-index: 20; padding: 12px 16px; transform: translateY(15px); border-radius: 9px; background: #473b49; box-shadow: 0 8px 26px #473b4933; color: white; font-size: 11px; opacity: 0; pointer-events: none; transition: .22s; }
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast.error { background: #a94950; }
@@ -401,4 +413,80 @@ tbody tr:last-child td { border-bottom: 0; }
   .app-shell.sidebar-collapsed .nav-count { display: none; }
   .app-shell.sidebar-collapsed .profile-button { justify-content: center; }
   .sidebar, .main-content { transition: width .2s ease, margin-left .2s ease; }
+}
+
+@media (max-width: 620px) {
+  body { font-size: 16px; }
+  .breadcrumb { font-size: 12px; }
+  .nav-link, .sidebar.open .nav-link { min-height: 44px; font-size: 14px; }
+  .heading-subtitle { font-size: 14px; }
+  .stat-top { font-size: 12px; }
+  .stat-foot { font-size: 11px; }
+  .top-quick-panel .quick-actions strong { font-size: 13px; }
+  .top-quick-panel .quick-actions small { font-size: 12px; }
+  .panel-heading p { font-size: 12px; }
+  .daily-revenue-heading { font-size: 11px; }
+  .daily-revenue-heading span, .daily-revenue-row span { font-size: 10px; }
+  .daily-revenue-row strong { font-size: 12px; }
+  .revenue-last-day span { font-size: 11px; }
+  .revenue-last-day strong { font-size: 15px; }
+  .chart-y-labels, .chart-x-labels { font-size: 9px; }
+  .data-panel th { font-size: 10px; }
+  .data-panel td { font-size: 12px; }
+  .product-cell strong { font-size: 12px; }
+  .stock-badge, .status-badge { font-size: 10px; }
+  .pagination-summary { font-size: 12px; }
+  .pagination-button { font-size: 12px; }
+  .result-count { font-size: 12px; }
+  .select-small, .filter-select { font-size: 12px; }
+  .unit-intro p { font-size: 12px; }
+  .unit-card strong { font-size: 13px; }
+  .unit-card small { font-size: 11px; }
+  .debt-chart-customer, .debt-chart-row > strong { font-size: 10px; }
+  .debt-details-summary { font-size: 12px; }
+  .debt-detail-record-heading > span strong, .debt-detail-record-heading > strong { font-size: 12px; }
+  .debt-detail-items li, .debt-detail-note { font-size: 11px; }
+  .text-button { font-size: 12px; }
+  .empty-state p { font-size: 12px; }
+  .page-footer { font-size: 10px; }
+  .print-actions { width: 100%; justify-content: flex-start; }
+  .print-actions .button { min-height: 40px; padding: 0 12px; font-size: 12px; }
+  .order-tools { width: 100%; justify-items: stretch; }
+  .order-tools > .filter-select { width: 100%; }
+}
+
+@media (max-width: 380px) {
+  .stat-top { font-size: 11px; }
+  .daily-revenue-heading { font-size: 10px; }
+  .chart-y-labels, .chart-x-labels { font-size: 8px; }
+}
+
+@media print {
+  @page { margin: 12mm; }
+  body.print-mode { min-width: 0; background: #fff; color: #111; font: 10pt Arial, sans-serif; }
+  body.print-mode > * { visibility: hidden !important; }
+  body.print-mode > #sales-print-report,
+  body.print-mode > #sales-print-report * { visibility: visible !important; }
+  body.print-mode > #sales-print-report {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: block !important;
+    width: 100%;
+    padding: 0;
+    color: #111;
+    background: #fff;
+  }
+  .print-report-header { margin-bottom: 18px; text-align: center; }
+  .print-report-header p { margin: 4px 0; }
+  .print-report-header p:first-child { font-size: 10pt; font-weight: 700; letter-spacing: 1px; }
+  .print-report-header h1 { margin: 10px 0 6px; font-size: 18pt; }
+  .print-report-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 15px 0; padding: 10px 0; border-top: 1px solid #999; border-bottom: 1px solid #999; }
+  .print-report-table { width: 100%; border-collapse: collapse; white-space: normal; font-size: 8pt; }
+  .print-report-table th, .print-report-table td { padding: 6px; border: 1px solid #aaa; color: #111; font-size: inherit; text-align: left; vertical-align: top; }
+  .print-report-table thead { display: table-header-group; }
+  .print-report-table tfoot { display: table-footer-group; }
+  .print-report-table tr { break-inside: avoid; }
+  .print-report-table .print-number { text-align: right; white-space: nowrap; }
+  .print-report-empty { padding: 20px; text-align: center; }
+  .print-report-footer { margin-top: 14px; color: #444; font-size: 8pt; }
 }

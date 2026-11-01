@@ -40,7 +40,7 @@ class DashboardPage extends HTMLElement {
           <article class="stat-card">
             <div class="stat-top"><span>Sản phẩm đang bán</span><span class="stat-icon mint-icon">▦</span></div>
             <strong id="stat-products">0</strong>
-            <small class="stat-foot"><span id="low-stock-count" class="warning">0 sắp hết hàng</span></small>
+            <small class="stat-foot"><span id="low-stock-count" class="warning">0 sắp hết/hết hàng</span></small>
             <div class="sparkline mint-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           </article>
           <article class="stat-card">
